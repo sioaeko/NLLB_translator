@@ -10,7 +10,7 @@ import gradio as gr
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 import torch
 
-# Load the model and tokenizer
+# Load the model and tokenizer((모델과 토크나이저 불러오기)
 model = AutoModelForSeq2SeqLM.from_pretrained("facebook/nllb-200-distilled-600M")
 tokenizer = AutoTokenizer.from_pretrained("facebook/nllb-200-distilled-600M")
 
