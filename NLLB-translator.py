@@ -1,36 +1,37 @@
 # AI Translater using META NLLB Transformer model and Gradio UI(Gradio UI와 META NLLB 언어모델을 사용할수있는 AI 번역기)
+# facebook/nllb-200-distilled-600M 모델을 사용하는 AI 번역기
+# Ngrok 터널을 사용해서 외부에서 Gradio에 접근할수있습니다.
+# 실행하면 로컬에서 웹브라우저로 Gradio 인터페이스에 접근할수있습니다.
+# 번역할 문장을 입력하고 번역된 결과를 확인할수있습니다.
+
+# 모델 정보 : https://huggingface.co/facebook/nllb-200-distilled-600M
 
 import gradio as gr
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 import torch
-import torch.nn.functional as F
-from transformers import MBartForConditionalGeneration, MBart50TokenizerFast
 
-# Load the model and tokenizer(모델 및 토크나이저 로드)
-model = MBartForConditionalGeneration.from_pretrained("facebook/mbart-large-50-many-to-many-mmt")
-tokenizer = MBart50TokenizerFast.from_pretrained("facebook/mbart-large-50-many-to-many-mmt")
+# Load the model and tokenizer
+model = AutoModelForSeq2SeqLM.from_pretrained("facebook/nllb-200-distilled-600M")
+tokenizer = AutoTokenizer.from_pretrained("facebook/nllb-200-distilled-600M")
 
-def translate_text(text, language)는
-    # Translate the text to the target language(텍스트를 대상 언어로 번역)
-    translated_text = model.generate(**tokenizer.prepare_translation_batch(src_texts=[text], tgt_langs=[language]))
-    return tokenizer.batch_decode(translated_text, skip_special_tokens=True)[0]
+def translate_text(text):
+    # Tokenize the text(텍스트 토큰화)
+    tokenized_text = tokenizer(text, return_tensors="pt", padding=True)
 
-# Create the Gradio interface(Gradio 인터페이스 만들기)
-output_text = gr.outputs.Textbox()
-gr.Interface(fn=translate_text, inputs=["text", "text"], outputs=output_text, title="AI Translator", description="Translate text to any of the 50+ languages supported by the model.").launch()
+    # Perform the translation(번역 수행하는 단계)
+    translation = model.generate(**tokenized_text)
 
-# Example translations:(예제 번역)
-# "Hello, how are you?" -> "Bonjour, comment vas-tu?"
-# "I am learning new things." -> "J'apprends de nouvelles choses."
-# "Thank you for your help." -> "Merci pour votre aide."
-# "Goodbye, see you later!" -> "Au revoir, à bientôt!"
+    # Decode and return the translation(디코딩 및 번역 반환)
+    translated_text = tokenizer.decode(translation[0], skip_special_tokens=True)
+    return translated_text
 
-# Using Ngrok to tunnel the Gradio interface(Gradio 인터페이스를 터널링하는 Ngrok 사용)
+# Create a Gradio interface(Gradio 인터페이스 생성)
+app = gr.Interface(fn=translate_text, inputs="text", outputs="text", title="AI Translater", description="Translate text from one language to another using the META NLLB Transformer model.")
+app.launch
+
+# ngrok tunneling for access from external URL(Ngrok 터널링으로 외부 URL에서 접근하기)
 pip install pyngrok
-ngrok_url = gr.Interface(fn=translate_text, inputs=["text", "text"], outputs=output_text, title="AI Translator", description="Translate text to any of the 50+ languages supported by the model.").launch(share=True)
-print(ngrok_url)
-
-# To stop the Gradio interface(Gradio 인터페이스를 중지)
-gr.Interface(fn=translate_text, inputs=["text", "text"], outputs=output_text, title="AI Translator", description="Translate text to any of the 50+ languages supported by the model.").close()
-
-# To stop the Ngrok tunnel(ngrok 터널을 중지)
-pkill ngrok
+from pyngrok import ngrok
+ngrok.set_auth_token("your_auth_token")
+public_url = ngrok.connect(port=7860)
+print(public_url)
