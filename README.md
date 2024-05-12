@@ -13,5 +13,8 @@
 
 * ipynb(주피터 노트북 스크립트) 방식또한 지원하여 런팟/코랩에서도 손쉽게 사용해볼수있습니다.(You can also easily use it in Runpod/Colabs with ipynb method.)
 
+### 개발과정을 노션에도 기록하고 있어요!
+> https://asanari.notion.site/Sideproject-e50001f7e16944128be6735bb461069c?pvs=4
+
 
 
