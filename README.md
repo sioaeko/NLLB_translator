@@ -1,4 +1,4 @@
-# OmniTranslator
+# Meta-Translator
 ### facebook/nllb-200-distilled-600M를 사용할수있는 AI 변역기
 
 * 200개의 언어를 지원하며, 600M의 파라미터를 가지고 있는 META의 NLLB 모델을 사용할수있는 변역기입니다.(AI translator that can use facebook/nllb-200-distilled-600M)
