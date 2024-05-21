@@ -9,29 +9,37 @@
 import gradio as gr
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 import torch
+from pyngrok import ngrok
 
-# Load the model and tokenizer((모델과 토크나이저 불러오기)
-model = AutoModelForSeq2SeqLM.from_pretrained("facebook/nllb-200-distilled-600M")
-tokenizer = AutoTokenizer.from_pretrained("facebook/nllb-200-distilled-600M")
+# Load the model and tokenizer
+model_name = "facebook/nllb-200-distilled-600M"
+model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 def translate_text(text):
-    # Tokenize the text(텍스트 토큰화)
+    # Tokenize the text
     tokenized_text = tokenizer(text, return_tensors="pt", padding=True)
 
-    # Perform the translation(번역 수행하는 단계)
+    # Perform the translation
     translation = model.generate(**tokenized_text)
 
-    # Decode and return the translation(디코딩 및 번역 반환)
+    # Decode and return the translation
     translated_text = tokenizer.decode(translation[0], skip_special_tokens=True)
     return translated_text
 
-# Create a Gradio interface(Gradio 인터페이스 생성)
-app = gr.Interface(fn=translate_text, inputs="text", outputs="text", title="AI Translater", description="Translate text from one language to another using the META NLLB Transformer model.")
-app.launch
+# Create a Gradio interface
+app = gr.Interface(
+    fn=translate_text,
+    inputs=gr.inputs.Textbox(lines=2, placeholder="Enter text to translate..."),
+    outputs="text",
+    title="AI Translator",
+    description="Translate text from one language to another using the META NLLB Transformer model."
+)
 
-# ngrok tunneling for access from external URL(Ngrok 터널링으로 외부 URL에서 접근하기)
-pip install pyngrok
-from pyngrok import ngrok
-ngrok.set_auth_token("your_auth_token")
+# Launch the Gradio app
+app.launch(share=True)
+
+# Set up ngrok tunneling
+ngrok.set_auth_token("your_auth_token")  # Replace with your actual ngrok auth token
 public_url = ngrok.connect(port=7860)
-print(public_url)
+print(f"Public URL: {public_url}")
