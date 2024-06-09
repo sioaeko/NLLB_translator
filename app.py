@@ -11,14 +11,21 @@ def translate(text, src_lang, tgt_lang):
     translated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
     return translated_text
 
-iface = gr.Interface(
-    fn=translate, 
-    inputs=["text", "text", "text"], 
-    outputs="text",
-    examples=[
-        ["Hello, world!", "en", "fr"]
-    ]
-)
+with gr.Blocks() as demo:
+    gr.Markdown("# NLLB Test Translator for Everyone")
+    
+    with gr.Row():
+        with gr.Column():
+            gr.Markdown("### 1. Select files to translate")
+            file_input = gr.File(label="files", file_types=['text'], file_count="multiple")
+        
+        with gr.Column():
+            gr.Markdown("### 2. Running a translation")
+            model_info = gr.Markdown("Currently using the facebook/nllb-200-distilled-600M AI translation model")
+            translate_button = gr.Button("Running a translation")
+            status_info = gr.Textbox(label="Status information", value="Waiting for translation...")
+            open_folder_button = gr.Button("Open the Done folder")
 
-if __name__ == "__main__":
-    iface.launch()
+    translate_button.click(fn=translate, inputs=[file_input], outputs=status_info)
+
+demo.launch()
