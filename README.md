@@ -17,4 +17,29 @@
 > https://asanari.notion.site/Sideproject-e50001f7e16944128be6735bb461069c?pvs=4
 
 
+프로젝트 구조 
+
+```text
+NLLB_Test_Translator/
+├── .github/
+│   └── workflows/
+│       └── python-app.yml  # GitHub Actions 설정 파일
+├── models/
+│   └── nllb_model.py       # 모델 파일 (예시)
+├── static/
+│   └── css/
+│   └── js/
+├── templates/
+│   └── index.html          # HTML 템플릿 파일
+├── tests/
+│   └── test_translator.py  # 테스트 파일
+├── .gitignore
+├── LICENSE
+├── README.md
+├── requirements.txt        # Python 의존성 파일
+├── app.py                  # 메인 애플리케이션 파일
+└── setup.sh                # 설치 스크립트 파일
+```
+
+
 
