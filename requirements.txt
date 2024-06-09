@@ -1,0 +1,8 @@
+gradio
+transformers
+torch
+numpy
+flask
+requests
+onnx
+onnxruntime
