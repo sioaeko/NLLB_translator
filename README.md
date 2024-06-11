@@ -49,25 +49,26 @@ Feel free to submit issues and pull requests. Contributions are welcome!
 NLLB_Test_Translator/
 ├── .github/
 │   └── workflows/
-│       └── python-app.yml  # GitHub Actions 설정 파일
+│       └── python-app.yml  # GitHub Actions Setting file
 ├── models/
-│   └── nllb_model.py       # 모델 파일 (예시)
+│   └── nllb_model.py       # Model file ( Example )
 ├── static/
 │   └── css/
 │   └── js/
 ├── templates/
-│   └── index.html          # HTML 템플릿 파일
+│   └── index.html          # HTML Template file
 ├── tests/
 │   └── test_translator.py  # 테스트 파일
+├── NLLB_Test_Translator_Notebook.ipynb         # Jupyter Notebook file
 ├── .gitignore
 ├── LICENSE
 ├── README.md
-├── requirements.txt        # Python 의존성 파일
-├── app.py                  # 메인 애플리케이션 파일
-└── setup.sh                # 설치 스크립트 파일
+├── requirements.txt        # Python Dependency file
+├── app.py                  # Main Application file
+└── setup.sh                # install script file
 ```
 
 ## License
 
-This project is licensed under the MIT License. 자세한 내용은 [LICENSE](https://github.com/sioaeko/OpenVoiceChanger/blob/main/LICENSE) 파일을 참조하십시오.
+This project is licensed under the MIT License. For more information, see [LICENSE](https://github.com/sioaeko/OpenVoiceChanger/blob/main/LICENSE) file.
 
