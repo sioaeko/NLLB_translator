@@ -2,6 +2,10 @@
 
 Demo Gradio Interface AI Translator using Facebook's NLLB-200-distilled-600M model.
 
+![GitHub](https://img.shields.io/github/license/sioaeko/NLLB_Test_Translator)
+![GitHub stars](https://img.shields.io/github/stars/sioaeko/NLLB_Test_Translator)
+![GitHub forks](https://img.shields.io/github/forks/sioaeko/NLLB_Test_Translator)
+
 ## Overview
 
 This project provides an AI translator that supports 200 languages using the NLLB (No Language Left Behind) model by Meta, which contains 600 million parameters. The application features a user-friendly interface built with Gradio, allowing users to input text and receive translations seamlessly.
