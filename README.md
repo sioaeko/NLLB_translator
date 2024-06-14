@@ -1,4 +1,4 @@
-# NLLB_Test_Translator
+# Linguify - NLLB Test Translator
 
 Demo Gradio Interface AI Translator using Facebook's NLLB-200-distilled-600M model.
 
