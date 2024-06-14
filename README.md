@@ -22,7 +22,7 @@ This project provides an AI translator that supports 200 languages using the NLL
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/sioaeko/NLLB_Test_Translator.git
+   git clone https://github.com/sioaeko/Linguify.git
 
 2. Install the required dependencies:
    ```bash
@@ -50,7 +50,7 @@ Feel free to submit issues and pull requests. Contributions are welcome!
 ### Project Tree
 
 ```text
-NLLB_Test_Translator/
+Linguify/
 ├── .github/
 │   └── workflows/
 │       └── python-app.yml  # GitHub Actions Setting file
@@ -63,7 +63,7 @@ NLLB_Test_Translator/
 │   └── index.html          # HTML Template file
 ├── tests/
 │   └── test_translator.py  # 테스트 파일
-├── NLLB_Test_Translator_Notebook.ipynb         # Jupyter Notebook file
+├── Linguify_Notebook.ipynb         # Jupyter Notebook file
 ├── .gitignore
 ├── LICENSE
 ├── README.md
