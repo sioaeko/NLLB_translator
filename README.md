@@ -40,7 +40,7 @@ python app.py
 
 ### Using Jupyter Notebook
 
-Open and run the NLLB_Test_Translator_Notebook.ipynb notebook in Jupyter or Colab for an interactive experience.
+Open and run the Linguify_N otebook.ipynb notebook in Jupyter or Colab for an interactive experience.
 
 ### Contributing
 
