@@ -35,7 +35,7 @@ This project provides an AI translator that supports 200 languages using the NLL
 Run the translator using the Python script:
 
 ```bash
-python NLLB-translator.py
+python app.py
 ```
 
 ### Using Jupyter Notebook
