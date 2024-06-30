@@ -2,6 +2,8 @@
 
 Gradio AI Translator using Facebook's NLLB-200-distilled-600M model.
 
+Demo on [Hugginface Space](https://huggingface.co/spaces/Asanari/Linguify)
+
 ![GitHub](https://img.shields.io/github/license/sioaeko/NLLB_Test_Translator)
 ![GitHub stars](https://img.shields.io/github/stars/sioaeko/NLLB_Test_Translator)
 ![GitHub forks](https://img.shields.io/github/forks/sioaeko/NLLB_Test_Translator)
