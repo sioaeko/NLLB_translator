@@ -1,14 +1,18 @@
 import gradio as gr
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+import torch
+from pyngrok import ngrok
 import os
 
+# Load the model and tokenizer
 model_name = "facebook/nllb-200-distilled-600M"
 model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 
+# Get all available language codes
 available_languages = list(tokenizer.lang_code_to_id.keys())
 
-def translate(text, src_lang, tgt_lang):
+def translate_text(text, src_lang, tgt_lang):
     try:
         inputs = tokenizer(text, return_tensors="pt", src_lang=src_lang)
         outputs = model.generate(
@@ -24,7 +28,7 @@ def translate(text, src_lang, tgt_lang):
 def translate_file(file, src_lang, tgt_lang):
     try:
         content = file.read().decode('utf-8')
-        translated = translate(content, src_lang, tgt_lang)
+        translated = translate_text(content, src_lang, tgt_lang)
         output_path = os.path.join("translated", f"translated_{file.name}")
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, 'w', encoding='utf-8') as f:
@@ -33,26 +37,42 @@ def translate_file(file, src_lang, tgt_lang):
     except Exception as e:
         return f"File translation error: {str(e)}"
 
-with gr.Blocks() as demo:
-    gr.Markdown("# NLLB Translator")
-    
-    with gr.Tab("Text Translation"):
-        with gr.Row():
-            src_lang = gr.Dropdown(choices=available_languages, label="Source Language")
-            tgt_lang = gr.Dropdown(choices=available_languages, label="Target Language")
-        input_text = gr.Textbox(lines=5, label="Input Text")
-        output_text = gr.Textbox(lines=5, label="Translated Text")
-        translate_btn = gr.Button("Translate Text")
-        translate_btn.click(fn=translate, inputs=[input_text, src_lang, tgt_lang], outputs=output_text)
-    
-    with gr.Tab("File Translation"):
-        file_input = gr.File(label="Upload file to translate")
-        file_src_lang = gr.Dropdown(choices=available_languages, label="Source Language")
-        file_tgt_lang = gr.Dropdown(choices=available_languages, label="Target Language")
-        file_output = gr.Textbox(label="Translation Status")
-        file_translate_btn = gr.Button("Translate File")
-        file_translate_btn.click(fn=translate_file, inputs=[file_input, file_src_lang, file_tgt_lang], outputs=file_output)
+def create_ui():
+    with gr.Blocks() as demo:
+        gr.Markdown("# NLLB Translator")
+        
+        with gr.Tab("Text Translation"):
+            with gr.Row():
+                src_lang = gr.Dropdown(choices=available_languages, label="Source Language")
+                tgt_lang = gr.Dropdown(choices=available_languages, label="Target Language")
+            input_text = gr.Textbox(lines=5, label="Input Text")
+            output_text = gr.Textbox(lines=5, label="Translated Text")
+            translate_btn = gr.Button("Translate Text")
+            translate_btn.click(fn=translate_text, inputs=[input_text, src_lang, tgt_lang], outputs=output_text)
+        
+        with gr.Tab("File Translation"):
+            file_input = gr.File(label="Upload file to translate")
+            file_src_lang = gr.Dropdown(choices=available_languages, label="Source Language")
+            file_tgt_lang = gr.Dropdown(choices=available_languages, label="Target Language")
+            file_output = gr.Textbox(label="Translation Status")
+            file_translate_btn = gr.Button("Translate File")
+            file_translate_btn.click(fn=translate_file, inputs=[file_input, file_src_lang, file_tgt_lang], outputs=file_output)
 
-    gr.Markdown("Currently using the facebook/nllb-200-distilled-600M AI translation model")
+        gr.Markdown(f"Currently using the {model_name} AI translation model")
 
-demo.launch()
+    return demo
+
+if __name__ == "__main__":
+    demo = create_ui()
+    
+    # Set up ngrok tunneling (optional)
+    if os.environ.get('USE_NGROK'):
+        ngrok_token = os.environ.get('NGROK_TOKEN')
+        if ngrok_token:
+            ngrok.set_auth_token(ngrok_token)
+            public_url = ngrok.connect(port=7860)
+            print(f"Public URL: {public_url}")
+        else:
+            print("NGROK_TOKEN not set. Skipping ngrok tunnel.")
+    
+    demo.launch(share=True)
