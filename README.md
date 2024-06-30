@@ -56,17 +56,12 @@ Linguify/
 │       └── python-app.yml  # GitHub Actions Setting file
 ├── models/
 │   └── nllb_model.py       # Model file ( Example )
-├── static/
-│   └── css/
-│   └── js/
-├── templates/
-│   └── index.html          # HTML Template file
 ├── tests/
 │   └── test_translator.py  # 테스트 파일
-├── Linguify_Notebook.ipynb         # Jupyter Notebook file
 ├── .gitignore
 ├── LICENSE
 ├── README.md
+├── Linguify-main.py
 ├── requirements.txt        # Python Dependency file
 ├── app.py                  # Main Application file
 └── setup.sh                # install script file
