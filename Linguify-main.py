@@ -1,45 +1,59 @@
-# AI Translater using META NLLB Transformer model and Gradio UI(Gradio UI와 META NLLB 언어모델을 사용할수있는 AI 번역기)
-# facebook/nllb-200-distilled-600M 모델을 사용하는 AI 번역기
-# Ngrok 터널을 사용해서 외부에서 Gradio에 접근할수있습니다.
-# 실행하면 로컬에서 웹브라우저로 Gradio 인터페이스에 접근할수있습니다.
-# 번역할 문장을 입력하고 번역된 결과를 확인할수있습니다.
-
-# 모델 정보 : https://huggingface.co/facebook/nllb-200-distilled-600M
-
 import gradio as gr
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 import torch
 from pyngrok import ngrok
+import os
 
 # Load the model and tokenizer
 model_name = "facebook/nllb-200-distilled-600M"
 model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-def translate_text(text):
-    # Tokenize the text
-    tokenized_text = tokenizer(text, return_tensors="pt", padding=True)
+# Get all available language codes
+available_languages = list(tokenizer.lang_code_to_id.keys())
 
-    # Perform the translation
-    translation = model.generate(**tokenized_text)
-
-    # Decode and return the translation
-    translated_text = tokenizer.decode(translation[0], skip_special_tokens=True)
-    return translated_text
+def translate_text(text, src_lang, tgt_lang):
+    try:
+        # Tokenize the text with source language
+        inputs = tokenizer(text, return_tensors="pt", src_lang=src_lang)
+        
+        # Generate translation
+        translated = model.generate(
+            **inputs, 
+            forced_bos_token_id=tokenizer.lang_code_to_id[tgt_lang],
+            max_length=128
+        )
+        
+        # Decode the translation
+        translated_text = tokenizer.batch_decode(translated, skip_special_tokens=True)[0]
+        return translated_text
+    except Exception as e:
+        return f"Translation error: {str(e)}"
 
 # Create a Gradio interface
-app = gr.Interface(
-    fn=translate_text,
-    inputs=gr.inputs.Textbox(lines=2, placeholder="Enter text to translate..."),
-    outputs="text",
-    title="AI Translator",
-    description="Translate text from one language to another using the META NLLB Transformer model."
-)
+with gr.Blocks() as app:
+    gr.Markdown("# AI Translator using META NLLB Model")
+    
+    with gr.Row():
+        src_lang = gr.Dropdown(choices=available_languages, label="Source Language")
+        tgt_lang = gr.Dropdown(choices=available_languages, label="Target Language")
+    
+    with gr.Row():
+        input_text = gr.Textbox(lines=5, label="Enter text to translate")
+        output_text = gr.Textbox(lines=5, label="Translated text")
+    
+    translate_btn = gr.Button("Translate")
+    translate_btn.click(fn=translate_text, inputs=[input_text, src_lang, tgt_lang], outputs=output_text)
 
 # Launch the Gradio app
 app.launch(share=True)
 
-# Set up ngrok tunneling
-ngrok.set_auth_token("your_auth_token")  # Replace with your actual ngrok auth token
-public_url = ngrok.connect(port=7860)
-print(f"Public URL: {public_url}")
+# Set up ngrok tunneling (optional)
+if os.environ.get('USE_NGROK'):
+    ngrok_token = os.environ.get('NGROK_TOKEN')
+    if ngrok_token:
+        ngrok.set_auth_token(ngrok_token)
+        public_url = ngrok.connect(port=7860)
+        print(f"Public URL: {public_url}")
+    else:
+        print("NGROK_TOKEN not set. Skipping ngrok tunnel.")
