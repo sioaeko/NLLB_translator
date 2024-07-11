@@ -63,7 +63,7 @@ NLLB_translator/
 ├── .gitignore
 ├── LICENSE
 ├── README.md
-├── NLLB_translator-main.py
+├── main.py                 
 ├── requirements.txt        # Python Dependency file
 ├── app.py                  # Main Application file
 └── setup.sh                # install script file
