@@ -2,7 +2,9 @@
 
 Gradio Transformer Translator using Facebook's NLLB-200-distilled-600M model.
 
-Demo on [Hugginface Space](https://huggingface.co/spaces/Asanari/Linguify)
+Model info : [Hugging Face](https://huggingface.co/docs/transformers/model_doc/nllb)
+
+Demo on [Hugging Face Demo Space](https://huggingface.co/spaces/Asanari/Linguify)
 
 ![GitHub](https://img.shields.io/github/license/sioaeko/NLLB_translator)
 ![GitHub stars](https://img.shields.io/github/stars/sioaeko/NLLB_translator)
