@@ -4,9 +4,9 @@ Gradio Transformer Translator using Facebook's NLLB-200-distilled-600M model.
 
 Demo on [Hugginface Space](https://huggingface.co/spaces/Asanari/Linguify)
 
-![GitHub](https://img.shields.io/github/license/sioaeko/NLLB_Test_Translator)
-![GitHub stars](https://img.shields.io/github/stars/sioaeko/NLLB_Test_Translator)
-![GitHub forks](https://img.shields.io/github/forks/sioaeko/NLLB_Test_Translator)
+![GitHub](https://img.shields.io/github/license/sioaeko/NLLB_translator)
+![GitHub stars](https://img.shields.io/github/stars/sioaeko/NLLB_translator)
+![GitHub forks](https://img.shields.io/github/forks/sioaeko/NLLB_translator)
 
 ## Overview
 
@@ -24,7 +24,7 @@ This project provides an AI translator that supports 200 languages using the NLL
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/sioaeko/Linguify.git
+   git clone https://github.com/sioaeko/NLLB_translator.git
 
 2. Install the required dependencies:
    ```bash
@@ -42,7 +42,7 @@ python app.py
 
 ### Using Jupyter Notebook
 
-Open and run the Linguify_N otebook.ipynb notebook in Jupyter or Colab for an interactive experience.
+Open and run the NLLB_translator.ipynb notebook in Jupyter or Colab for an interactive experience.
 
 ### Contributing
 
@@ -52,7 +52,7 @@ Feel free to submit issues and pull requests. Contributions are welcome!
 ### Project Tree
 
 ```text
-Linguify/
+NLLB_translator/
 ├── .github/
 │   └── workflows/
 │       └── python-app.yml  # GitHub Actions Setting file
@@ -63,7 +63,7 @@ Linguify/
 ├── .gitignore
 ├── LICENSE
 ├── README.md
-├── Linguify-main.py
+├── NLLB_translator-main.py
 ├── requirements.txt        # Python Dependency file
 ├── app.py                  # Main Application file
 └── setup.sh                # install script file
@@ -71,5 +71,5 @@ Linguify/
 
 ## License
 
-This project is licensed under the MIT License. For more information, see [LICENSE](https://github.com/sioaeko/OpenVoiceChanger/blob/main/LICENSE) file.
+This project is licensed under the MIT License. For more information, see [LICENSE](https://github.com/sioaeko/NLLB_translator/blob/main/LICENSE) file.
 
