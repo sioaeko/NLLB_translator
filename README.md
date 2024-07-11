@@ -1,5 +1,7 @@
 # NLLB_translator 
 
+![캡처](https://github.com/sioaeko/NLLB_translator/assets/101755125/3ad10e58-a435-4f57-a730-408b6d3a0d61)
+
 Gradio Transformer Translator using Facebook's NLLB-200-distilled-600M model.
 
 Model info : [Hugging Face](https://huggingface.co/docs/transformers/model_doc/nllb)
