@@ -1,6 +1,6 @@
-# Linguify - NLLB Test Translator
+# NLLB_translator 
 
-Gradio AI Translator using Facebook's NLLB-200-distilled-600M model.
+Gradio Transformer Translator using Facebook's NLLB-200-distilled-600M model.
 
 Demo on [Hugginface Space](https://huggingface.co/spaces/Asanari/Linguify)
 
