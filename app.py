@@ -83,12 +83,12 @@ def cached_translate(text, src_lang, tgt_lang, max_length=128, temperature=0.7):
            "zho_Hans": tokenizer.convert_tokens_to_ids("zho_Hans"),
            "spa_Latn": tokenizer.convert_tokens_to_ids("spa_Latn"),
            "fra_Latn": tokenizer.convert_tokens_to_ids("fra_Latn"),
-           "deu_Latn": tokenizer.convert_tokens_to_ids("deu_Latn"),
-           "rus_Cyrl": tokenizer.convert_tokens_to_ids("rus_Cyrl"),
-           "por_Latn": tokenizer.convert_tokens_to_ids("por_Latn"),
-           "ita_Latn": tokenizer.convert_tokens_to_ids("ita_Latn"),
-           "mya_Mymr": tokenizer.convert_tokens_to_ids("mya_Mymr"),
-           "tha_Thai": tokenizer.convert_tokens_to_ids("tha_Thai")
+           "deu_Latn": tokenizer.convert_tokens_to_ids("deu_Latn"),  # Replace with actual token id for 'deu_Latn'
+           "rus_Cyrl": tokenizer.convert_tokens_to_ids("rus_Cyrl"),  # Replace with actual token id for 'rus_Cyrl'
+           "por_Latn": tokenizer.convert_tokens_to_ids("por_Latn"),  # Replace with actual token id for 'por_Latn'
+           "ita_Latn": tokenizer.convert_tokens_to_ids("ita_Latn"),  # Replace with actual token id for 'ita_Latn'
+           "mya_Mymr": tokenizer.convert_tokens_to_ids("mya_Mymr"),  # Replace with actual token id for 'mya_Mymr'
+           "tha_Thai": tokenizer.convert_tokens_to_ids("tha_Thai")   # Replace with actual token id for 'tha_Thai'
        }
 
        inputs = tokenizer(text, return_tensors="pt", padding=True)
@@ -118,35 +118,42 @@ def cached_translate(text, src_lang, tgt_lang, max_length=128, temperature=0.7):
        return f"Translation error: {str(e)}"
 
 def translate_file_with_progress(file, src_lang, tgt_lang, max_length=128, temperature=0.7):
-   try:
-       content = file.read().decode('utf-8')
-       lines = content.split('\n')
-       translated_lines = []
-       
-       progress = gr.Progress()
-       for i, line in enumerate(progress.tqdm(lines)):
-           if line.strip():
-               translated = cached_translate(
-                   line, src_lang, tgt_lang, 
-                   max_length=max_length,
-                   temperature=temperature
-               )
-               translated_lines.append(translated)
-           else:
-               translated_lines.append("")
-               
-       output = '\n'.join(translated_lines)
-       
-       # Save output
-       os.makedirs("translated", exist_ok=True) 
-       output_path = os.path.join("translated", f"translated_{file.name}")
-       with open(output_path, 'w', encoding='utf-8') as f:
-           f.write(output)
-           
-       return f"Translation saved to {output_path}", output
-       
-   except Exception as e:
-       return f"File translation error: {str(e)}", None
+    try:
+        # Ensure file is handled correctly
+        file_path = file.name  # Gradio provides only the path, not a file object
+        
+        # Open the file manually
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        lines = content.split('\n')
+        translated_lines = []
+
+        progress = gr.Progress()
+        for i, line in enumerate(progress.tqdm(lines)):
+            if line.strip():
+                translated = cached_translate(
+                    line, src_lang, tgt_lang,
+                    max_length=max_length,
+                    temperature=temperature
+                )
+                translated_lines.append(translated)
+            else:
+                translated_lines.append("")
+
+        output = '\n'.join(translated_lines)
+
+        # Save output
+        os.makedirs("translated", exist_ok=True)
+        output_path = os.path.join("translated", f"translated_{os.path.basename(file_path)}")
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(output)
+
+        return f"Translation saved to {output_path}", output
+
+    except Exception as e:
+        return f"File translation error: {str(e)}", None
+
 
 def swap_languages(src, tgt):
    return tgt, src
