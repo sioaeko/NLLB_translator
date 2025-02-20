@@ -18,6 +18,8 @@ LANGUAGE_CODES = {
    "Russian": "rus_Cyrl",
    "Portuguese": "por_Latn",
    "Italian": "ita_Latn",
+   "Burmese": "mya_Mymr",
+   "Thai": "tha_Thai"
 }
 
 class TranslationHistory:
@@ -73,13 +75,31 @@ def cached_translate(text, src_lang, tgt_lang, max_length=128, temperature=0.7):
        src_code = LANGUAGE_CODES.get(src_lang, src_lang)
        tgt_code = LANGUAGE_CODES.get(tgt_lang, tgt_lang)
        
+       # Manually define language token mappings
+       LANGUAGE_TOKENS = {
+           "eng_Latn": tokenizer.convert_tokens_to_ids("eng_Latn"),
+           "kor_Hang": tokenizer.convert_tokens_to_ids("kor_Hang"),
+           "jpn_Jpan": tokenizer.convert_tokens_to_ids("jpn_Jpan"),
+           "zho_Hans": tokenizer.convert_tokens_to_ids("zho_Hans"),
+           "spa_Latn": tokenizer.convert_tokens_to_ids("spa_Latn"),
+           "fra_Latn": tokenizer.convert_tokens_to_ids("fra_Latn"),
+           "deu_Latn": tokenizer.convert_tokens_to_ids("deu_Latn"),
+           "rus_Cyrl": tokenizer.convert_tokens_to_ids("rus_Cyrl"),
+           "por_Latn": tokenizer.convert_tokens_to_ids("por_Latn"),
+           "ita_Latn": tokenizer.convert_tokens_to_ids("ita_Latn"),
+           "mya_Mymr": tokenizer.convert_tokens_to_ids("mya_Mymr"),
+           "tha_Thai": tokenizer.convert_tokens_to_ids("tha_Thai")
+       }
+
        inputs = tokenizer(text, return_tensors="pt", padding=True)
        if device == "cuda":
            inputs = {k: v.to("cuda") for k, v in inputs.items()}
            
+       forced_bos_token_id = LANGUAGE_TOKENS.get(tgt_code, None)  # Use the manual mapping
+       
        outputs = model.generate(
            **inputs,
-           forced_bos_token_id=tokenizer.lang_code_to_id[tgt_code],
+           forced_bos_token_id=forced_bos_token_id,
            max_length=max_length,
            temperature=temperature,
            num_beams=5,
