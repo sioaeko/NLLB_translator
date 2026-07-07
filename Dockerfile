@@ -24,12 +24,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends patchelf \
  && find /usr/local/lib/python3.11/site-packages -name '*.so*' -path '*ctranslate2*' -exec patchelf --clear-execstack {} + \
  && apt-get purge -y patchelf && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 RUN python convert_model.py   # writes ./models/nllb-200-distilled-600M-int8
+# MADLAD-400: fetch the pre-converted CTranslate2 int8 (model + tokenizer, ~3 GB)
+RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('Nextcloud-AI/madlad400-3b-mt-ct2-int8', local_dir='models/madlad400-3b-mt-int8')"
 
 # ---- Stage 3: lean runtime (no torch) ----
 FROM python:3.11-slim AS runtime
 WORKDIR /app
 ENV STATIC_DIR=/app/static \
-    HF_HUB_DISABLE_SYMLINKS_WARNING=1
+    HF_HUB_DISABLE_SYMLINKS_WARNING=1 \
+    MADLAD_HF_MODEL=/app/models/madlad400-3b-mt-int8
 COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 # Same execstack fix for the runtime inference library.

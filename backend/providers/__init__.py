@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from providers.base import ProviderInfo, TranslationProvider
 from providers.gemini import GeminiProvider
-from providers.groq import GroqProvider
+from providers.groq import GroqProvider, GroqQwenProvider
 from providers.madlad import MADLADProvider
 from providers.nllb import NLLBProvider
 from providers.ollama import OllamaProvider
@@ -20,6 +20,7 @@ _PROVIDERS: list[TranslationProvider] = [
     MADLADProvider(),
     OllamaProvider(),
     GeminiProvider(),
+    GroqQwenProvider(),
     GroqProvider(),
 ]
 

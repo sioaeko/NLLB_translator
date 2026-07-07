@@ -54,7 +54,7 @@ export default function Home() {
       </section>
 
       <footer className="border-t border-slate-200/70 py-6 text-center text-xs text-slate-400 dark:border-slate-800">
-        Engines: NLLB-200 · MADLAD-400 · Ollama · Gemini · Groq · Free &amp; open source (MIT)
+        Engines: NLLB-200 · MADLAD-400 · Ollama · Gemini · Qwen · Groq · Free &amp; open source (MIT)
       </footer>
     </main>
   );
