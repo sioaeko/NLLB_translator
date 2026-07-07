@@ -39,7 +39,7 @@ class OllamaProvider(TranslationProvider):
         except httpx.HTTPError:
             return False
 
-    def translate(self, text: str, src: str, tgt: str) -> str:
+    def translate(self, text: str, src: str, tgt: str, api_key: str | None = None) -> str:
         resp = httpx.post(
             f"{HOST}/api/chat",
             json={

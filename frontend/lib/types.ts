@@ -11,7 +11,10 @@ export interface Engine {
   available: boolean;
   private: boolean;
   setup_hint: string;
+  key_field: string; // which stored key unlocks it ("gemini"/"groq"); "" for local
 }
+
+export type ApiKeys = Record<string, string>; // { gemini?: string, groq?: string }
 
 export interface TranslateResponse {
   translation: string;

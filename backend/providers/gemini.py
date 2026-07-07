@@ -24,13 +24,16 @@ class GeminiProvider(TranslationProvider):
     kind = "api"
     description = "Google Gemini · free API tier · excellent for Korean/CJK"
     private = False
-    setup_hint = "Set GEMINI_API_KEY (free at aistudio.google.com/apikey)"
+    key_field = "gemini"
+    setup_hint = "Add a Gemini key in Settings (free at aistudio.google.com/apikey)"
 
     def is_available(self) -> bool:
         return bool(os.environ.get("GEMINI_API_KEY"))
 
-    def translate(self, text: str, src: str, tgt: str) -> str:
-        key = os.environ["GEMINI_API_KEY"]
+    def translate(self, text: str, src: str, tgt: str, api_key: str | None = None) -> str:
+        key = api_key or os.environ.get("GEMINI_API_KEY")
+        if not key:
+            raise ValueError("No Gemini API key provided.")
         prompt = (
             f"Translate the following text from {name_for(src)} to "
             f"{name_for(tgt)}. Output ONLY the translation, with no notes, "

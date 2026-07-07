@@ -92,7 +92,7 @@ class MADLADProvider(TranslationProvider):
             self._tokenizer.convert_tokens_to_ids(target_tokens)
         )
 
-    def translate(self, text: str, src: str, tgt: str) -> str:
+    def translate(self, text: str, src: str, tgt: str, api_key: str | None = None) -> str:
         madlad_tgt = FLORES_TO_MADLAD.get(tgt)
         if madlad_tgt is None:
             raise ValueError(

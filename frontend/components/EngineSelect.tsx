@@ -85,7 +85,7 @@ export default function EngineSelect({ engines, value, onChange }: Props) {
           <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:border-slate-800">
             Translation engine
           </div>
-          <ul className="py-1">
+          <ul className="scroll-thin max-h-[60vh] overflow-y-auto py-1">
             {engines.map((e) => {
               const disabled = !e.available;
               return (

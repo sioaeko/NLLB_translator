@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -68,7 +68,11 @@ def languages() -> dict:
 
 
 @app.post("/api/translate", response_model=TranslateResponse)
-def translate_endpoint(req: TranslateRequest) -> TranslateResponse:
+def translate_endpoint(
+    req: TranslateRequest,
+    x_gemini_key: str | None = Header(default=None),
+    x_groq_key: str | None = Header(default=None),
+) -> TranslateResponse:
     if not req.text.strip():
         return TranslateResponse(
             translation="", source=req.source, target=req.target, engine=req.engine or ""
@@ -82,15 +86,19 @@ def translate_endpoint(req: TranslateRequest) -> TranslateResponse:
     provider = providers.get(engine_id)
     if provider is None:
         raise HTTPException(400, f"Unknown engine: {engine_id!r}")
-    if not provider.is_available():
-        raise HTTPException(
-            503,
-            f"Engine '{engine_id}' is not available. "
-            "For local models run the conversion script; for API engines set the API key.",
-        )
+
+    # Client-supplied key (bring-your-own-key) for API engines.
+    client_keys = {"gemini": x_gemini_key, "groq": x_groq_key}
+    api_key = client_keys.get(provider.key_field) if provider.key_field else None
+
+    if provider.kind == "api":
+        if not (provider.is_available() or api_key):
+            raise HTTPException(503, provider.setup_hint or "Add an API key in Settings.")
+    elif not provider.is_available():
+        raise HTTPException(503, provider.setup_hint or f"Engine '{engine_id}' is not available.")
 
     try:
-        result = provider.translate(req.text, req.source, req.target)
+        result = provider.translate(req.text, req.source, req.target, api_key=api_key)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     except httpx.HTTPStatusError as exc:

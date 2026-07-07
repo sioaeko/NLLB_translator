@@ -20,14 +20,17 @@ ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
 class _GroqEngine(TranslationProvider):
     kind = "api"
     private = False
-    setup_hint = "Set GROQ_API_KEY (free at console.groq.com/keys)"
+    key_field = "groq"
+    setup_hint = "Add a Groq key in Settings (free at console.groq.com/keys)"
     model = ""  # subclass sets this
 
     def is_available(self) -> bool:
         return bool(os.environ.get("GROQ_API_KEY"))
 
-    def translate(self, text: str, src: str, tgt: str) -> str:
-        key = os.environ["GROQ_API_KEY"]
+    def translate(self, text: str, src: str, tgt: str, api_key: str | None = None) -> str:
+        key = api_key or os.environ.get("GROQ_API_KEY")
+        if not key:
+            raise ValueError("No Groq API key provided.")
         resp = httpx.post(
             ENDPOINT,
             headers={"Authorization": f"Bearer {key}"},

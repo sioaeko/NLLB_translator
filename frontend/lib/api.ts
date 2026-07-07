@@ -1,4 +1,4 @@
-import type { Engine, Language, TranslateResponse } from "./types";
+import type { ApiKeys, Engine, Language, TranslateResponse } from "./types";
 
 // Same-origin by default (single-container deploy); override for split dev/prod.
 const API_BASE =
@@ -22,11 +22,15 @@ export async function translate(
   source: string,
   target: string,
   engine: string,
+  keys: ApiKeys = {},
   signal?: AbortSignal
 ): Promise<TranslateResponse> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (keys.gemini) headers["X-Gemini-Key"] = keys.gemini;
+  if (keys.groq) headers["X-Groq-Key"] = keys.groq;
   const res = await fetch(`${API_BASE}/api/translate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ text, source, target, engine }),
     signal,
   });
