@@ -18,6 +18,11 @@ WORKDIR /m
 COPY backend/requirements.txt backend/requirements-convert.txt backend/convert_model.py ./
 RUN pip install --no-cache-dir -r requirements.txt \
  && pip install --no-cache-dir -r requirements-convert.txt --extra-index-url https://download.pytorch.org/whl/cpu
+# CTranslate2 wheels ship a .so that requests an executable stack, which hardened
+# container runtimes (incl. HuggingFace Spaces) refuse. Clear the flag.
+RUN apt-get update && apt-get install -y --no-install-recommends execstack \
+ && find /usr/local/lib/python3.11/site-packages -name '*.so*' -path '*ctranslate2*' -exec execstack -c {} + \
+ && apt-get purge -y execstack && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 RUN python convert_model.py   # writes ./models/nllb-200-distilled-600M-int8
 
 # ---- Stage 3: lean runtime (no torch) ----
@@ -27,6 +32,10 @@ ENV STATIC_DIR=/app/static \
     HF_HUB_DISABLE_SYMLINKS_WARNING=1
 COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
+# Same execstack fix for the runtime inference library.
+RUN apt-get update && apt-get install -y --no-install-recommends execstack \
+ && find /usr/local/lib/python3.11/site-packages -name '*.so*' -path '*ctranslate2*' -exec execstack -c {} + \
+ && apt-get purge -y execstack && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 COPY backend/ ./
 COPY --from=model /m/models ./models
 COPY --from=frontend /fe/out ./static
