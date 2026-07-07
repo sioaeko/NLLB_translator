@@ -14,8 +14,13 @@
 
 </div>
 
-<!-- TODO: replace with a real screenshot / demo GIF -->
-<!-- <p align="center"><img src="docs/demo.gif" width="760" alt="demo" /></p> -->
+<p align="center">
+  <a href="https://huggingface.co/spaces/Asanari/nllb-translator">
+    <img src="docs/demo.gif" width="820" alt="NLLB Translator demo — switching engines and translating across 200 languages" />
+  </a>
+</p>
+
+<p align="center"><b><a href="https://huggingface.co/spaces/Asanari/nllb-translator">▶ Live demo</a></b></p>
 
 ---
 
