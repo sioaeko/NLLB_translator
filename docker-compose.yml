@@ -1,0 +1,30 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      - CORS_ORIGINS=http://localhost:3000
+      # API engines activate automatically when these are set (see backend/.env)
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+    volumes:
+      # Persist the converted model + HF cache across rebuilds.
+      - model-cache:/app/models
+      - hf-cache:/root/.cache/huggingface
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_BASE=http://localhost:8000
+    depends_on:
+      - backend
+
+volumes:
+  model-cache:
+  hf-cache:

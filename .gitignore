@@ -1,0 +1,28 @@
+# Reference clone of the original archived project
+_reference/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+backend/models/
+backend/translated/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+frontend/node_modules/
+frontend/.next/
+
+# Env
+.env
+.env.local
+*.local
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

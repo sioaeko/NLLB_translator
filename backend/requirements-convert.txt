@@ -1,0 +1,4 @@
+# Extra deps needed ONLY to convert the HF model to CTranslate2 (one-time).
+# Runtime inference does not need torch. Install with the CPU wheel index:
+#   pip install -r requirements-convert.txt --extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.5.1

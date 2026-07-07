@@ -1,0 +1,14 @@
+# API
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+httpx==0.28.1
+
+# Local inference (NLLB via CTranslate2; no torch needed at runtime)
+ctranslate2==4.5.0
+transformers==4.47.1
+sentencepiece==0.2.0
+protobuf==5.29.2
+
+# ctranslate2 4.5 imports pkg_resources, removed in setuptools>=81
+setuptools<81
