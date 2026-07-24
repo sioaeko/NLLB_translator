@@ -62,6 +62,7 @@ class MADLADProvider(TranslationProvider):
         self._translator = None
         self._tokenizer = None
         self._lock = Lock()
+        self._infer_lock = Lock()  # HF fast tokenizers are not thread-safe
 
     def is_available(self) -> bool:
         return os.path.isdir(MODEL_DIR)
@@ -75,22 +76,28 @@ class MADLADProvider(TranslationProvider):
             import ctranslate2
             import transformers
 
-            self._translator = ctranslate2.Translator(
+            # Publish `_translator` LAST (it is the guard the fast path checks) so
+            # a concurrent request never sees the model ready with a None tokenizer.
+            tokenizer = transformers.AutoTokenizer.from_pretrained(HF_MODEL)
+            translator = ctranslate2.Translator(
                 MODEL_DIR, device=DEVICE, compute_type=COMPUTE_TYPE
             )
-            self._tokenizer = transformers.AutoTokenizer.from_pretrained(HF_MODEL)
+            self._tokenizer = tokenizer
+            self._translator = translator
 
     @lru_cache(maxsize=2048)
     def _translate_line(self, text: str, madlad_tgt: str) -> str:
-        prompt = f"<2{madlad_tgt}> {text}"
-        source = self._tokenizer.convert_ids_to_tokens(self._tokenizer.encode(prompt))
-        results = self._translator.translate_batch(
-            [source], beam_size=4, max_decoding_length=MAX_DECODING_LENGTH
-        )
-        target_tokens = results[0].hypotheses[0]
-        return self._tokenizer.decode(
-            self._tokenizer.convert_tokens_to_ids(target_tokens)
-        )
+        # Serialize tokenizer use (Rust fast tokenizer is not thread-safe).
+        with self._infer_lock:
+            prompt = f"<2{madlad_tgt}> {text}"
+            source = self._tokenizer.convert_ids_to_tokens(self._tokenizer.encode(prompt))
+            results = self._translator.translate_batch(
+                [source], beam_size=4, max_decoding_length=MAX_DECODING_LENGTH
+            )
+            target_tokens = results[0].hypotheses[0]
+            return self._tokenizer.decode(
+                self._tokenizer.convert_tokens_to_ids(target_tokens)
+            )
 
     def translate(self, text: str, src: str, tgt: str, api_key: str | None = None) -> str:
         madlad_tgt = FLORES_TO_MADLAD.get(tgt)

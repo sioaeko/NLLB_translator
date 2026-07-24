@@ -32,6 +32,7 @@ class NLLBProvider(TranslationProvider):
         self._translator = None
         self._tokenizer = None
         self._lock = Lock()
+        self._infer_lock = Lock()  # HF fast tokenizers are not thread-safe
 
     def is_available(self) -> bool:
         return os.path.isdir(MODEL_DIR)
@@ -45,25 +46,33 @@ class NLLBProvider(TranslationProvider):
             import ctranslate2
             import transformers
 
-            self._translator = ctranslate2.Translator(
+            # Load the tokenizer first and publish `_translator` LAST: it is the
+            # guard the fast path checks, so a concurrent request must never see
+            # the translator ready while the tokenizer is still None.
+            tokenizer = transformers.AutoTokenizer.from_pretrained(HF_MODEL)
+            translator = ctranslate2.Translator(
                 MODEL_DIR, device=DEVICE, compute_type=COMPUTE_TYPE
             )
-            self._tokenizer = transformers.AutoTokenizer.from_pretrained(HF_MODEL)
+            self._tokenizer = tokenizer
+            self._translator = translator
 
     @lru_cache(maxsize=2048)
     def _translate_line(self, text: str, src: str, tgt: str) -> str:
-        self._tokenizer.src_lang = src
-        source = self._tokenizer.convert_ids_to_tokens(self._tokenizer.encode(text))
-        results = self._translator.translate_batch(
-            [source],
-            target_prefix=[[tgt]],
-            beam_size=4,
-            max_decoding_length=MAX_DECODING_LENGTH,
-        )
-        target_tokens = results[0].hypotheses[0][1:]  # drop the target-lang token
-        return self._tokenizer.decode(
-            self._tokenizer.convert_tokens_to_ids(target_tokens)
-        )
+        # Serialize tokenizer use: the Rust fast tokenizer raises "Already
+        # borrowed" under concurrent access, and setting src_lang mutates it.
+        with self._infer_lock:
+            self._tokenizer.src_lang = src
+            source = self._tokenizer.convert_ids_to_tokens(self._tokenizer.encode(text))
+            results = self._translator.translate_batch(
+                [source],
+                target_prefix=[[tgt]],
+                beam_size=4,
+                max_decoding_length=MAX_DECODING_LENGTH,
+            )
+            target_tokens = results[0].hypotheses[0][1:]  # drop target-lang token
+            return self._tokenizer.decode(
+                self._tokenizer.convert_tokens_to_ids(target_tokens)
+            )
 
     def translate(self, text: str, src: str, tgt: str, api_key: str | None = None) -> str:
         if not is_valid(src) or not is_valid(tgt):
