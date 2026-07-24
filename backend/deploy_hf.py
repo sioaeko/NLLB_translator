@@ -44,7 +44,13 @@ IGNORE = [
 ]
 
 print(f"Deploying to Space: {space_id}")
-api.create_repo(space_id, repo_type="space", space_sdk="docker", exist_ok=True)
+# Creating a Docker Space may require PRO; if it already exists, skip create and
+# go straight to uploading (updates don't need create).
+try:
+    api.repo_info(space_id, repo_type="space")
+    print("Space exists — updating in place.")
+except Exception:
+    api.create_repo(space_id, repo_type="space", space_sdk="docker", exist_ok=True)
 
 # Upload the repo tree (skip README — replaced below with a frontmatter version).
 api.upload_folder(
