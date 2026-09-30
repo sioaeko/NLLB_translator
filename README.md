@@ -4,7 +4,7 @@
 
 # NLLB Translator
 
-**A multi-engine neural translator across 200 languages — run an open model locally, or switch to a free frontier API, all from one clean UI.**
+**A multi-engine translator across 200 languages — open models on your own server, or cloud models with your own key, all from one clean UI.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="https://huggingface.co/spaces/Asanari/nllb-translator">
-    <img src="docs/demo.gif" width="820" alt="NLLB Translator demo — switching engines and translating across 200 languages" />
+    <img src="docs/demo.gif" width="820" alt="NLLB Translator demo — picking an engine and translating" />
   </a>
 </p>
 
@@ -24,58 +24,69 @@
 
 ---
 
-Pick your translation **engine per request**: **NLLB-200** running locally (private, offline), Google's **MADLAD-400** for wider coverage, any local LLM via **Ollama** (Qwen, Gemma, TranslateGemma, Aya…), or a free cloud API (**Gemini**, **Groq**) when you want frontier quality without a GPU. A FastAPI backend with a tiny provider registry does the routing; a Next.js + Tailwind frontend gives it a single, cohesive surface.
+Pick the translation **engine per request**: **NLLB-200** and Tencent's **Hy-MT2** run on the server itself (no third-party API), **TranslateGemma** runs on your own Ollama, and cloud models — **Gemini**, **Qwen** and **GPT-OSS** on Groq, anything on **OpenRouter**, or OpenAI's low-cost **GPT-6 Luna** — work with your own key. A FastAPI backend with a small provider registry does the routing; a Next.js + Tailwind frontend puts it all on one surface.
 
-> This is a v2 rebuild of the original Gradio-based NLLB translator — re-architected into a multi-engine FastAPI + Next.js web app.
+> This is a v2 rebuild of the original Gradio-based NLLB translator, re-architected into a multi-engine FastAPI + Next.js web app.
 
 ## 🔧 Engines
 
-| Engine | Type | Enabled when | Notes |
+| Engine | Where it runs | Enabled when | Notes |
 | --- | --- | --- | --- |
-| **NLLB-200 (600M)** | 🖥️ local | model converted | 200 languages · private · offline · light enough for a free CPU host |
-| **MADLAD-400 (3B)** | 🖥️ local | model converted | 400+ languages · higher quality than NLLB · needs a beefier host |
-| **Ollama** | 🖥️ local | Ollama running | one engine → **Qwen / Gemma / TranslateGemma / Aya / Llama** locally |
-| **Gemini 2.5 Flash-Lite** | ☁️ free API | `GEMINI_API_KEY` set | excellent Korean/CJK · no self-hosting |
-| **Llama 3.3 70B (Groq)** | ☁️ free API | `GROQ_API_KEY` set | very fast · open LLM |
+| **NLLB-200 (600M)** | 🖥️ this server | model converted | Meta · 200 languages · fastest |
+| **Hy-MT2 (1.8B)** | 🖥️ this server | GGUF downloaded | Tencent, 2026 · 38 languages incl. Korean · most natural phrasing |
+| **TranslateGemma 4B** | 🖥️ your Ollama | Ollama running | Google, 2026 · 55 languages · or any other Ollama model |
+| **Gemini 3.5 Flash-Lite** | ☁️ Google | Gemini key | free tier · strong on Korean / CJK |
+| **Qwen 3.8 27B** | ☁️ Groq | Groq key | free tier · strong on CJK |
+| **GPT-OSS 120B** | ☁️ Groq | Groq key | free tier · very fast |
+| **OpenRouter** | ☁️ OpenRouter | OpenRouter key | any model; free Gemma 4 31B by default |
+| **GPT-6 Luna** | ☁️ OpenAI | OpenAI key | paid, $0.10 / $0.50 per 1M tokens |
 
-Every engine **self-reports availability** — the UI only offers the ones that are ready, and each greyed-out engine tells you exactly how to enable it. Adding another is one file (see [below](#-adding-an-engine)).
+- **Keys** can live on the server (env vars / Space secrets) or be pasted by each visitor in the app's **API keys** panel. Pasted keys stay in that browser and are passed through per request — the server never stores them.
+- **Groq retires models often.** If a configured Groq model disappears, the backend looks up Groq's live catalogue and switches to the newest model of the same family.
+- Every engine **reports its own availability**; the UI only offers the ready ones and tells you how to enable the rest. Adding another engine is one file (see [below](#adding-an-engine)).
 
 ## ✨ Features
 
-- **Multiple engines, one UI** — a dropdown swaps engines mid-session; local and cloud side by side.
-- **200 languages** — the full FLORES-200 set, with a searchable dropdown.
-- **Private by default** — NLLB / MADLAD / Ollama run locally; nothing leaves the machine. Cloud engines are clearly labelled.
-- **Instant translation** — debounced auto-translate as you type, with language swap, copy, char count, and dark mode.
+- **Multiple engines, one UI** — switch engines mid-session; local and cloud side by side, grouped.
+- **200 languages** — the full FLORES-200 set, with a searchable picker and common languages pinned.
+- **No third-party API for local engines** — NLLB and Hy-MT2 translate on the server; cloud engines are labelled with where the text goes.
+- **Built for typing** — debounced auto-translate, auto-growing panes, one-click example phrases, skeleton loading, swap, copy, dark mode.
+- **Keyboard and screen-reader friendly** — arrow keys / Enter / Esc in every picker, labelled controls, live-region output, correct `lang` / `dir` on text.
 - **Deploy free** — single-container HuggingFace Space, or split Vercel + backend. See [DEPLOY.md](DEPLOY.md).
 
 ## 🏗️ Architecture
 
 ```
-┌──────────────┐   HTTP / JSON   ┌────────────────────────────────────────┐
-│  Next.js UI  │ ──────────────▶ │  FastAPI  ·  /api/*                    │
-│  engine +    │ ◀────────────── │  provider registry                     │
-│  lang picker │                 │   ├─ nllb    🖥️ CTranslate2 (local)    │
-└──────────────┘                 │   ├─ madlad  🖥️ CTranslate2 (local)    │
-                                 │   ├─ ollama  🖥️ local LLM               │
-                                 │   ├─ gemini  ☁️ free API                │
-                                 │   └─ groq    ☁️ free API                │
-                                 └────────────────────────────────────────┘
+┌──────────────┐   HTTP / JSON   ┌───────────────────────────────────────────┐
+│  Next.js UI  │ ──────────────▶ │  FastAPI  ·  /api/*                       │
+│  engine +    │ ◀────────────── │  provider registry                        │
+│  lang picker │  (+ user keys)  │   ├─ nllb         🖥️ CTranslate2 int8     │
+└──────────────┘                 │   ├─ hymt         🖥️ llama.cpp (GGUF)     │
+                                 │   ├─ ollama       🖥️ your Ollama          │
+                                 │   ├─ gemini       ☁️ Google               │
+                                 │   ├─ groq_qwen    ☁️ Groq                 │
+                                 │   ├─ groq_gptoss  ☁️ Groq                 │
+                                 │   ├─ openrouter   ☁️ OpenRouter           │
+                                 │   └─ openai       ☁️ OpenAI               │
+                                 └───────────────────────────────────────────┘
 ```
 
 ```
 NLLB-Trans/
-├── backend/               FastAPI + provider registry
-│   ├── main.py            API: /api/translate, /api/engines, /api/languages
-│   ├── providers/         one file per engine (base · nllb · madlad · ollama · gemini · groq)
-│   ├── languages.py       full FLORES-200 code ↔ name mapping
-│   └── convert_model.py   HF → CTranslate2 int8 conversion
-├── frontend/              Next.js (App Router) + Tailwind CSS
-│   ├── app/               pages, layout, favicon
-│   ├── components/        Translator · EngineSelect · EngineIcon · LanguageSelect · ThemeToggle · Logo
-│   └── lib/               API client & types
-├── Dockerfile             single-container build (HuggingFace Space)
-├── docker-compose.yml     local two-container dev
-└── DEPLOY.md              deployment guide
+├── backend/                 FastAPI + provider registry
+│   ├── main.py              API: /api/translate, /api/engines, /api/languages
+│   ├── providers/           one file per engine + shared chat client
+│   ├── languages.py         FLORES-200 code ↔ name mapping
+│   ├── convert_model.py     NLLB: HF → CTranslate2 int8
+│   ├── fetch_hymt.py        Hy-MT2: download the official GGUF
+│   └── requirements-llm.txt llama.cpp bindings for Hy-MT2 (optional)
+├── frontend/                Next.js (App Router) + Tailwind CSS
+│   ├── app/                 page, layout, favicon
+│   ├── components/          Translator · EngineSelect · LanguageSelect · Settings · …
+│   └── lib/                 API client, key storage, engine metadata
+├── Dockerfile               single-container build (HuggingFace Space)
+├── docker-compose.yml       local two-container dev
+└── DEPLOY.md                deployment guide
 ```
 
 ## 🚀 Quick start
@@ -83,11 +94,11 @@ NLLB-Trans/
 ### Docker Compose (local)
 
 ```bash
-cp backend/.env.example backend/.env   # optional: add GEMINI_API_KEY / GROQ_API_KEY
+cp backend/.env.example backend/.env   # optional: add API keys
 docker compose up --build
 ```
 
-Frontend → <http://localhost:3000>, backend → <http://localhost:8000>. The first build converts the NLLB model (~2.4 GB download, one time).
+Frontend → <http://localhost:3000>, backend → <http://localhost:8000>. The first build downloads and prepares the local models (NLLB ~2.4 GB, Hy-MT2 ~1.1 GB, one time).
 
 ### Manual (dev)
 
@@ -98,12 +109,16 @@ cd backend
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-# One-time: convert NLLB to CTranslate2 int8. Conversion needs torch
-# (runtime inference does not) — install the convert-only deps first:
+# NLLB-200 — one-time conversion to CTranslate2 int8 (conversion needs torch;
+# runtime inference does not):
 pip install -r requirements-convert.txt --extra-index-url https://download.pytorch.org/whl/cpu
 python convert_model.py
 
-cp .env.example .env          # optional: enable the cloud engines
+# Hy-MT2 (optional) — prebuilt llama.cpp CPU wheel + the official GGUF:
+pip install -r requirements-llm.txt --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu --only-binary=llama-cpp-python
+python fetch_hymt.py
+
+cp .env.example .env          # optional: server-side API keys
 uvicorn main:app --reload --port 8000
 ```
 
@@ -116,22 +131,20 @@ cp .env.local.example .env.local     # points at http://localhost:8000
 npm run dev
 ```
 
-Open <http://localhost:3000>. With no model converted and no keys, the app runs but shows "no engine" — convert NLLB **or** set one API key to get going.
+Open <http://localhost:3000>. With no local model and no keys the app still runs and shows how to enable each engine.
 
 ## 🔌 Enabling the other engines
 
 ```bash
-# MADLAD-400 (400+ languages) — one-time convert (~3 GB int8):
-HF_MODEL=google/madlad400-3b-mt CT2_MODEL_DIR=models/madlad400-3b-mt-int8 \
-  python convert_model.py
+# TranslateGemma via Ollama — install Ollama, then:
+ollama pull translategemma:4b          # any other model works too:
+export OLLAMA_MODEL=translategemma:4b  # OLLAMA_MODEL=qwen3 etc.
 
-# Ollama (Qwen / Gemma / TranslateGemma / Aya / Llama) — install Ollama, then:
-ollama pull qwen2.5           # or gemma2, aya, llama3.3, …
-export OLLAMA_MODEL=qwen2.5
-
-# Cloud engines — free tiers, no credit card:
-#   GEMINI_API_KEY  →  https://aistudio.google.com/apikey
-#   GROQ_API_KEY    →  https://console.groq.com/keys
+# Cloud engines — paste keys in the app, or set them server-side:
+#   GEMINI_API_KEY      https://aistudio.google.com/apikey   (free tier)
+#   GROQ_API_KEY        https://console.groq.com/keys        (free tier)
+#   OPENROUTER_API_KEY  https://openrouter.ai/keys           (free + paid models)
+#   OPENAI_API_KEY      https://platform.openai.com/api-keys (paid, low cost)
 ```
 
 ## 🧩 API
@@ -143,38 +156,40 @@ export OLLAMA_MODEL=qwen2.5
 | `GET` | `/api/languages` | — | List of `{ code, name }` |
 | `POST` | `/api/translate` | `{ text, source, target, engine? }` | Translate; `engine` selects the engine |
 
-Language codes are FLORES-200 (`<iso639-3>_<script>`), e.g. `eng_Latn`, `kor_Hang`, `jpn_Jpan`. Omit `engine` to use the first available one.
+Language codes are FLORES-200 (`<iso639-3>_<script>`), e.g. `eng_Latn`, `kor_Hang`, `jpn_Jpan`. Omit `engine` to use the first available one. Cloud engines accept a per-request key in `X-Gemini-Key`, `X-Groq-Key`, `X-OpenRouter-Key` (plus `X-OpenRouter-Model`) or `X-OpenAI-Key`.
 
 ```bash
 curl -X POST http://localhost:8000/api/translate \
   -H "Content-Type: application/json" \
-  -d '{"text":"Hello, world!","source":"eng_Latn","target":"kor_Hang","engine":"nllb"}'
-# → {"translation":"안녕하세요, 세계!", ...}
+  -d '{"text":"The weather is lovely today.","source":"eng_Latn","target":"kor_Hang","engine":"hymt"}'
+# → {"translation":"오늘 날씨가 아주 좋네요.", ...}
 ```
 
 ### Adding an engine
 
 Create `backend/providers/<name>.py` implementing `TranslationProvider`
 (`is_available()` + `translate()`), then add an instance to the list in
-[`backend/providers/__init__.py`](backend/providers/__init__.py). It shows up in
-the UI automatically when available.
+[`backend/providers/__init__.py`](backend/providers/__init__.py). OpenAI-compatible
+chat APIs can reuse `providers/chat_api.py`. The engine shows up in the UI
+automatically once it's available.
 
 ## ☁️ Deploy
 
-- **HuggingFace Space (free, single container)** — the root [`Dockerfile`](Dockerfile) builds the static frontend, the API, and a pre-converted NLLB model into one image served from one origin.
+- **HuggingFace Space (single container)** — the root [`Dockerfile`](Dockerfile) builds the static frontend, the API, and both local models into one image served from one origin.
 - **Split** — frontend on Vercel + backend on any Docker host.
 
 Full steps, including Space metadata and secrets, in **[DEPLOY.md](DEPLOY.md)**.
 
 ## 🛠️ Tech stack
 
-`FastAPI` · `CTranslate2` (int8) · `transformers` · `Next.js 15` · `React 19` · `Tailwind CSS` · `Docker`
+`FastAPI` · `CTranslate2` (int8) · `llama.cpp` · `transformers` · `Next.js 15` · `React 19` · `Tailwind CSS` · `Docker`
 
-Engines: [NLLB-200](https://huggingface.co/facebook/nllb-200-distilled-600M) · [MADLAD-400](https://huggingface.co/google/madlad400-3b-mt) · [Ollama](https://ollama.com) · [Gemini](https://ai.google.dev) · [Groq](https://groq.com)
+Engines: [NLLB-200](https://huggingface.co/facebook/nllb-200-distilled-600M) · [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B) · [TranslateGemma](https://ollama.com/library/translategemma) · [Gemini](https://ai.google.dev) · [Groq](https://groq.com) · [OpenRouter](https://openrouter.ai) · [OpenAI](https://platform.openai.com)
 
 ## 📜 License
 
-MIT — see [LICENSE](LICENSE). Engine weights/services keep their own terms: NLLB is
-[CC-BY-NC](https://huggingface.co/facebook/nllb-200-distilled-600M), MADLAD-400 is
-[Apache-2.0](https://huggingface.co/google/madlad400-3b-mt); Gemini and Groq are used
-via their APIs under their respective terms.
+MIT — see [LICENSE](LICENSE). Model weights and services keep their own terms:
+NLLB-200 is [CC-BY-NC 4.0](https://huggingface.co/facebook/nllb-200-distilled-600M),
+Hy-MT2 is [Apache-2.0](https://huggingface.co/tencent/Hy-MT2-1.8B), TranslateGemma
+follows the Gemma Terms of Use, and the cloud engines are used through their
+providers' APIs under their respective terms.

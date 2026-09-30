@@ -28,6 +28,9 @@ export async function translate(
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (keys.gemini) headers["X-Gemini-Key"] = keys.gemini;
   if (keys.groq) headers["X-Groq-Key"] = keys.groq;
+  if (keys.openai) headers["X-OpenAI-Key"] = keys.openai;
+  if (keys.openrouter) headers["X-OpenRouter-Key"] = keys.openrouter;
+  if (keys.openrouter_model) headers["X-OpenRouter-Model"] = keys.openrouter_model;
   const res = await fetch(`${API_BASE}/api/translate`, {
     method: "POST",
     headers,

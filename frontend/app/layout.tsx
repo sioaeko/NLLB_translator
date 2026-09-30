@@ -1,10 +1,29 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
+const geist = Geist({
+  subsets: ["latin", "latin-ext"],
+  variable: "--font-geist",
+  display: "swap",
+});
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "NLLB Translator — 200 languages, running locally",
+  title: "NLLB Translator — one translator, every engine",
   description:
-    "Neural machine translation across 200 languages powered by Meta's NLLB-200 model, served locally with CTranslate2.",
+    "Translate across 200 languages with open models (NLLB-200, MADLAD-400) or free cloud APIs (Gemini, Groq), switching engine per translation.",
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#F6F7F9" },
+    { media: "(prefers-color-scheme: dark)", color: "#0A0E14" },
+  ],
 };
 
 export default function RootLayout({
@@ -13,8 +32,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${geist.variable} ${geistMono.variable}`}
+    >
       <head>
+        {/* Pretendard for Hangul — dynamic subset only loads the glyphs in use. */}
+        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="" />
+        <link
+          rel="stylesheet"
+          crossOrigin=""
+          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+        />
         {/* Apply saved / system theme before paint to avoid a flash. */}
         <script
           dangerouslySetInnerHTML={{
@@ -22,7 +52,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="font-sans antialiased bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <body className="min-h-dvh bg-canvas font-sans text-slate-900 antialiased dark:bg-canvas-dark dark:text-slate-100">
         {children}
       </body>
     </html>
