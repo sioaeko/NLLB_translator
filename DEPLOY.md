@@ -8,8 +8,9 @@ recommended one for a live demo.
 ## Option A — HuggingFace Spaces (single container)
 
 The root [`Dockerfile`](Dockerfile) builds everything into one image: the static
-Next.js frontend, the FastAPI backend, and both local models (NLLB-200 as
-CTranslate2 int8, Hy-MT2 as a ~1.1 GB GGUF run by llama.cpp). FastAPI serves the
+Next.js frontend, the FastAPI backend, and three local models (NLLB-200 as
+CTranslate2 int8, Hy-MT2 as a ~1.1 GB GGUF run by llama.cpp, and TranslateGemma
+4B as a ~3.3 GB Ollama model). FastAPI serves the
 UI and the API from the same origin, so there's no CORS setup or separate
 frontend host.
 
@@ -46,17 +47,25 @@ frontend host.
    - `OPENROUTER_API_KEY` — <https://openrouter.ai/keys>
    - `OPENAI_API_KEY` — <https://platform.openai.com/api-keys> (paid)
 
-   You don't need any of them: NLLB-200 and Hy-MT2 work out of the box, and
+   You don't need any of them: NLLB-200, Hy-MT2, and TranslateGemma work out of the box, and
    visitors can paste their own keys in the app's **API keys** panel. Be careful
    with server-side paid keys on a public Space — every visitor spends them.
 
 **Notes**
-- The first build downloads the models (NLLB ~2.4 GB to convert, Hy-MT2 ~1.1 GB).
+- The first build downloads the models (NLLB ~2.4 GB to convert, Hy-MT2 ~1.1 GB,
+  TranslateGemma ~3.3 GB) and the pinned Ollama runtime.
 - Docker also compiles a llama.cpp CPU wheel against Debian's libc and verifies
   that it loads before publishing the image; later builds can reuse this layer.
 - Free CPU Spaces sleep after ~2 days idle and wake on the next visit; the first
   translation after a wake-up also loads the model, so it takes a few seconds.
-- Both local engines fit the free CPU tier (2 vCPU / 16 GB).
+- Ollama binds only to `127.0.0.1:11434`; visitors use it through the translation
+  API. Ollama cloud features are disabled. A supervisor starts both services and
+  shuts down the container if either service exits.
+- TranslateGemma uses a 4K context, 2 CPU threads, one inference at a time, and
+  unloads after 2 idle minutes. Its model is already in the image when a Space
+  wakes up. The configured model must be installed before the UI enables it.
+- On free CPU hardware (2 vCPU / 16 GB), TranslateGemma is intended for short
+  translations; response times grow with text length and concurrent visitors.
 
 ---
 

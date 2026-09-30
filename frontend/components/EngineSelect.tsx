@@ -10,7 +10,7 @@ import EngineIcon from "./EngineIcon";
 const BLURB: Record<string, string> = {
   nllb: "Meta · 200 languages · fastest",
   hymt: "Tencent · 38 languages · most natural",
-  ollama: "Google TranslateGemma via your Ollama",
+  ollama: "Google · 55 languages · runs on this server",
   gemini: "Google · free tier · strong on Korean & CJK",
   groq_qwen: "Alibaba · free on Groq · strong on CJK",
   groq_gptoss: "OpenAI open-weight · free on Groq",

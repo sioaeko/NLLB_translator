@@ -1,5 +1,5 @@
 # Single-container build: Next.js static frontend + FastAPI backend + local
-# models (NLLB-200 via CTranslate2, Hy-MT2 via llama.cpp), suitable for a
+# models (NLLB-200 via CTranslate2, Hy-MT2 via llama.cpp, TranslateGemma via Ollama), suitable for a
 # HuggingFace Space (Docker SDK) or any single-host deploy.
 
 # ---- Stage 1: build the static frontend ----
@@ -38,11 +38,34 @@ RUN CMAKE_ARGS="-DGGML_NATIVE=OFF" CMAKE_BUILD_PARALLEL_LEVEL=2 \
     pip wheel --no-cache-dir --no-deps --no-binary=llama-cpp-python \
       -r requirements-llm.txt --wheel-dir /wheels
 
-# ---- Lean runtime (no torch or compiler) ----
+# ---- Ollama + model, downloaded once during the image build ----
+FROM ollama/ollama:0.35.0@sha256:2a6e883b917fc543389599dae79918f5cac9e14388905069982f44aa4f5625d01 AS ollama-dist
+FROM python:3.11-slim AS ollama-model
+WORKDIR /prepare
+COPY --from=ollama-dist /usr/bin/ollama /usr/bin/ollama
+COPY --from=ollama-dist /usr/lib/ollama /usr/lib/ollama
+ENV OLLAMA_HOST=http://127.0.0.1:11434 \
+    OLLAMA_MODELS=/opt/ollama/models \
+    OLLAMA_MODEL=translategemma:4b \
+    OLLAMA_NO_CLOUD=1
+COPY backend/ollama_service.py ./
+RUN python ollama_service.py --pull
+
+# ---- Runtime (no torch or compiler) ----
 FROM python:3.11-slim AS runtime
 WORKDIR /app
 ENV STATIC_DIR=/app/static \
-    HF_HUB_DISABLE_SYMLINKS_WARNING=1
+    HF_HUB_DISABLE_SYMLINKS_WARNING=1 \
+    OLLAMA_HOST=http://127.0.0.1:11434 \
+    OLLAMA_MODELS=/opt/ollama/models \
+    OLLAMA_MODEL=translategemma:4b \
+    OLLAMA_NO_CLOUD=1 \
+    OLLAMA_NUM_PARALLEL=1 \
+    OLLAMA_MAX_LOADED_MODELS=1 \
+    OLLAMA_MAX_QUEUE=8 \
+    OLLAMA_CONTEXT_LENGTH=4096 \
+    OLLAMA_TRANSLATE_THREADS=2 \
+    OLLAMA_KEEP_ALIVE=2m
 COPY backend/requirements.txt backend/requirements-llm.txt ./
 COPY --from=llama /wheels /wheels
 RUN pip install --no-cache-dir -r requirements.txt \
@@ -50,7 +73,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
  && rm -rf /wheels
 # libgomp: OpenMP runtime the llama.cpp CPU wheel links against.
 # patchelf: same execstack fix for the native inference libraries.
-RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 patchelf \
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 libvulkan1 libopenblas0 patchelf \
  && find /usr/local/lib/python3.11/site-packages -name '*.so*' \( -path '*ctranslate2*' -o -path '*llama_cpp*' \) \
       -exec patchelf --clear-execstack {} + \
  && apt-get purge -y patchelf && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
@@ -58,5 +81,8 @@ RUN python -c "from llama_cpp import Llama"
 COPY backend/ ./
 COPY --from=model /m/models ./models
 COPY --from=frontend /fe/out ./static
+COPY --from=ollama-dist /usr/bin/ollama /usr/bin/ollama
+COPY --from=ollama-dist /usr/lib/ollama /usr/lib/ollama
+COPY --from=ollama-model /opt/ollama/models /opt/ollama/models
 EXPOSE 7860
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["python", "ollama_service.py"]

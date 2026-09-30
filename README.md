@@ -24,7 +24,7 @@
 
 ---
 
-Pick the translation **engine per request**: **NLLB-200** and Tencent's **Hy-MT2** run on the server itself (no third-party API), **TranslateGemma** runs on your own Ollama, and cloud models — **Gemini**, **Qwen** and **GPT-OSS** on Groq, anything on **OpenRouter**, or OpenAI's low-cost **GPT-6 Luna** — work with your own key. A FastAPI backend with a small provider registry does the routing; a Next.js + Tailwind frontend puts it all on one surface.
+Pick the translation **engine per request**: **NLLB-200**, Tencent's **Hy-MT2**, and **TranslateGemma 4B** run inside the Space (no third-party API or key needed). TranslateGemma uses a bundled Ollama server. Cloud models — **Gemini**, **Qwen** and **GPT-OSS** on Groq, anything on **OpenRouter**, or OpenAI's low-cost **GPT-6 Luna** — work with your own key. A FastAPI backend with a small provider registry does the routing; a Next.js + Tailwind frontend puts it all on one surface.
 
 > This is a v2 rebuild of the original Gradio-based NLLB translator, re-architected into a multi-engine FastAPI + Next.js web app.
 
@@ -34,7 +34,7 @@ Pick the translation **engine per request**: **NLLB-200** and Tencent's **Hy-MT2
 | --- | --- | --- | --- |
 | **NLLB-200 (600M)** | 🖥️ this server | model converted | Meta · 200 languages · fastest |
 | **Hy-MT2 (1.8B)** | 🖥️ this server | GGUF downloaded | Tencent, 2026 · 38 languages incl. Korean · most natural phrasing |
-| **TranslateGemma 4B** | 🖥️ your Ollama | Ollama running | Google, 2026 · 55 languages · or any other Ollama model |
+| **TranslateGemma 4B** | 🖥️ this Space (Ollama) | bundled model ready | Google, 2026 · 55 languages · slower on free CPU |
 | **Gemini 3.5 Flash-Lite** | ☁️ Google | Gemini key | free tier · strong on Korean / CJK |
 | **Qwen 3.8 27B** | ☁️ Groq | Groq key | free tier · strong on CJK |
 | **GPT-OSS 120B** | ☁️ Groq | Groq key | free tier · very fast |
@@ -62,7 +62,7 @@ Pick the translation **engine per request**: **NLLB-200** and Tencent's **Hy-MT2
 │  engine +    │ ◀────────────── │  provider registry                        │
 │  lang picker │  (+ user keys)  │   ├─ nllb         🖥️ CTranslate2 int8     │
 └──────────────┘                 │   ├─ hymt         🖥️ llama.cpp (GGUF)     │
-                                 │   ├─ ollama       🖥️ your Ollama          │
+                                 │   ├─ ollama       🖥️ TranslateGemma      │
                                  │   ├─ gemini       ☁️ Google               │
                                  │   ├─ groq_qwen    ☁️ Groq                 │
                                  │   ├─ groq_gptoss  ☁️ Groq                 │
@@ -79,6 +79,7 @@ NLLB-Trans/
 │   ├── languages.py         FLORES-200 code ↔ name mapping
 │   ├── convert_model.py     NLLB: HF → CTranslate2 int8
 │   ├── fetch_hymt.py        Hy-MT2: download the official GGUF
+│   ├── ollama_service.py    Space: prepare Ollama model and supervise services
 │   └── requirements-llm.txt llama.cpp bindings for Hy-MT2 (optional)
 ├── frontend/                Next.js (App Router) + Tailwind CSS
 │   ├── app/                 page, layout, favicon
@@ -136,7 +137,7 @@ Open <http://localhost:3000>. With no local model and no keys the app still runs
 ## 🔌 Enabling the other engines
 
 ```bash
-# TranslateGemma via Ollama — install Ollama, then:
+# TranslateGemma is bundled in the Space. For manual dev or a separate Ollama:
 ollama pull translategemma:4b          # any other model works too:
 export OLLAMA_MODEL=translategemma:4b  # OLLAMA_MODEL=qwen3 etc.
 
@@ -175,7 +176,7 @@ automatically once it's available.
 
 ## ☁️ Deploy
 
-- **HuggingFace Space (single container)** — the root [`Dockerfile`](Dockerfile) builds the static frontend, the API, and both local models into one image served from one origin.
+- **HuggingFace Space (single container)** — the root [`Dockerfile`](Dockerfile) builds the static frontend, the API, and all three local models into one image served from one origin. Ollama stays internal to the container, processes one request at a time, and unloads TranslateGemma after two idle minutes.
 - **Split** — frontend on Vercel + backend on any Docker host.
 
 Full steps, including Space metadata and secrets, in **[DEPLOY.md](DEPLOY.md)**.
