@@ -221,6 +221,22 @@ def name_for(code: str) -> str:
     return LANGUAGES.get(code, code)
 
 
+_TWO_LETTER = {
+    "eng": "en", "kor": "ko", "jpn": "ja", "spa": "es", "fra": "fr", "deu": "de",
+    "rus": "ru", "por": "pt", "ita": "it", "vie": "vi", "tha": "th", "hin": "hi",
+    "arb": "ar", "ind": "id", "tur": "tr", "pol": "pl", "nld": "nl", "ukr": "uk",
+    "heb": "he",
+}
+
+
+def bcp47(code: str) -> str:
+    """Approximate BCP 47 tag for a FLORES-200 code (e.g. kor_Hang -> ko)."""
+    lang, _, script = code.partition("_")
+    if lang == "zho":
+        return f"zh-{script}"
+    return _TWO_LETTER.get(lang, lang)
+
+
 def as_list() -> list[dict[str, str]]:
     """Return languages as a sorted list of {code, name} for the API."""
     return [

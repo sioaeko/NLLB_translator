@@ -9,19 +9,24 @@ from __future__ import annotations
 
 from providers.base import ProviderInfo, TranslationProvider
 from providers.gemini import GeminiProvider
-from providers.groq import GroqProvider, GroqQwenProvider
-from providers.madlad import MADLADProvider
+from providers.groq import GroqGptOssProvider, GroqQwenProvider
+from providers.hymt import HyMTProvider
 from providers.nllb import NLLBProvider
 from providers.ollama import OllamaProvider
+from providers.openai_api import OpenAIProvider
+from providers.openrouter import OpenRouterProvider
 
-# Order = display order in the UI. Local/private engines first.
+# Order = display order in the UI. Local engines first, then free cloud tiers,
+# then paid ones.
 _PROVIDERS: list[TranslationProvider] = [
     NLLBProvider(),
-    MADLADProvider(),
+    HyMTProvider(),
     OllamaProvider(),
     GeminiProvider(),
     GroqQwenProvider(),
-    GroqProvider(),
+    GroqGptOssProvider(),
+    OpenRouterProvider(),
+    OpenAIProvider(),
 ]
 
 _BY_ID = {p.id: p for p in _PROVIDERS}

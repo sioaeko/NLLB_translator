@@ -11,6 +11,8 @@ services:
       # API engines activate automatically when these are set (see backend/.env)
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
     volumes:
       # Persist the converted model + HF cache across rebuilds.
       - model-cache:/app/models

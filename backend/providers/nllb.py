@@ -74,7 +74,7 @@ class NLLBProvider(TranslationProvider):
                 self._tokenizer.convert_tokens_to_ids(target_tokens)
             )
 
-    def translate(self, text: str, src: str, tgt: str, api_key: str | None = None) -> str:
+    def translate(self, text, src, tgt, api_key=None, model=None) -> str:
         if not is_valid(src) or not is_valid(tgt):
             raise ValueError("Unknown language code for NLLB.")
         self._ensure_loaded()

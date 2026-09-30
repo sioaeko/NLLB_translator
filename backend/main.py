@@ -1,4 +1,4 @@
-"""FastAPI service — multi-engine NLLB / Gemini / Groq translator.
+"""FastAPI service — multi-engine translator (local models + cloud APIs).
 
 Exposes the translation API and, when a built frontend is present (``static/``),
 serves it too so the whole app can run as a single HuggingFace Space.
@@ -19,8 +19,8 @@ from languages import as_list
 
 app = FastAPI(
     title="NLLB Translator API",
-    description="Multi-engine neural translation: local NLLB-200 plus free "
-    "cloud APIs (Gemini, Groq).",
+    description="Multi-engine translation: local NLLB-200 and Hy-MT2, plus cloud "
+    "APIs (Gemini, Groq, OpenAI, OpenRouter) with bring-your-own-key.",
     version="2.0.0",
 )
 
@@ -33,6 +33,26 @@ app.add_middleware(
 )
 
 MAX_INPUT_CHARS = int(os.environ.get("MAX_INPUT_CHARS", "5000"))
+
+_PROVIDER_NAMES = {"gemini": "Gemini", "groq": "Groq", "openai": "OpenAI", "openrouter": "OpenRouter"}
+
+
+def _upstream_message(key_field: str, resp: httpx.Response) -> str:
+    """Turn a provider's HTTP error into something a user can act on."""
+    who = _PROVIDER_NAMES.get(key_field, "The provider")
+    code = resp.status_code
+    if code in (401, 403):
+        return f"{who} rejected the API key ({code}). Check it under API keys."
+    if code == 429:
+        return f"{who} rate limit reached. Wait a moment and try again."
+    try:
+        body = resp.json()
+        err = body.get("error", body) if isinstance(body, dict) else body
+        detail = err.get("message", "") if isinstance(err, dict) else str(err)
+    except ValueError:
+        detail = resp.text
+    detail = " ".join((detail or "").split())[:200]
+    return f"{who} returned an error ({code})" + (f": {detail}" if detail else ".")
 
 
 class TranslateRequest(BaseModel):
@@ -72,6 +92,9 @@ def translate_endpoint(
     req: TranslateRequest,
     x_gemini_key: str | None = Header(default=None),
     x_groq_key: str | None = Header(default=None),
+    x_openai_key: str | None = Header(default=None),
+    x_openrouter_key: str | None = Header(default=None),
+    x_openrouter_model: str | None = Header(default=None),
 ) -> TranslateResponse:
     if not req.text.strip():
         return TranslateResponse(
@@ -88,8 +111,14 @@ def translate_endpoint(
         raise HTTPException(400, f"Unknown engine: {engine_id!r}")
 
     # Client-supplied key (bring-your-own-key) for API engines.
-    client_keys = {"gemini": x_gemini_key, "groq": x_groq_key}
+    client_keys = {
+        "gemini": x_gemini_key,
+        "groq": x_groq_key,
+        "openai": x_openai_key,
+        "openrouter": x_openrouter_key,
+    }
     api_key = client_keys.get(provider.key_field) if provider.key_field else None
+    model = x_openrouter_model if provider.key_field == "openrouter" else None
 
     if provider.kind == "api":
         if not (provider.is_available() or api_key):
@@ -98,11 +127,13 @@ def translate_endpoint(
         raise HTTPException(503, provider.setup_hint or f"Engine '{engine_id}' is not available.")
 
     try:
-        result = provider.translate(req.text, req.source, req.target, api_key=api_key)
+        result = provider.translate(req.text, req.source, req.target, api_key=api_key, model=model)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     except httpx.HTTPStatusError as exc:
-        raise HTTPException(502, f"Upstream API error: {exc.response.status_code}") from exc
+        raise HTTPException(502, _upstream_message(provider.key_field, exc.response)) from exc
+    except httpx.TimeoutException as exc:
+        raise HTTPException(504, "The engine took too long to answer. Try again.") from exc
     except Exception as exc:  # noqa: BLE001 — surface engine errors to the client
         raise HTTPException(500, f"Translation failed: {exc}") from exc
 

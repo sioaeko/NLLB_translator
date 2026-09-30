@@ -1,55 +1,70 @@
 # Deployment
 
-Two supported shapes. **HuggingFace Spaces** (single free container) is the
+Two supported shapes. **HuggingFace Spaces** (single container) is the
 recommended one for a live demo.
 
 ---
 
-## Option A — HuggingFace Spaces (free, single container)
+## Option A — HuggingFace Spaces (single container)
 
 The root [`Dockerfile`](Dockerfile) builds everything into one image: the static
-Next.js frontend, the FastAPI backend, and a pre-converted NLLB model. FastAPI
-serves the UI and the API from the same origin, so no CORS or separate frontend
-host is needed.
+Next.js frontend, the FastAPI backend, and both local models (NLLB-200 as
+CTranslate2 int8, Hy-MT2 as a ~1.1 GB GGUF run by llama.cpp). FastAPI serves the
+UI and the API from the same origin, so there's no CORS setup or separate
+frontend host.
 
-1. Create a new Space → **SDK: Docker** → **Blank**.
-2. Push this repo to the Space (or connect the GitHub repo).
-3. Add the Space metadata to the **top of the Space's `README.md`**:
+1. Create a Space → **SDK: Docker** → **Blank**.
+   > As of 2026, HuggingFace asks for a PRO subscription to *create* a new Docker
+   > Space on free CPU hardware. An existing Docker Space keeps running and can
+   > still be updated for free.
+2. Upload the repo to the Space — `backend/deploy_hf.py` does this and adds the
+   Space metadata below:
+
+   ```bash
+   cd backend
+   HF_TOKEN=hf_… SPACE_ID=<user>/nllb-translator python deploy_hf.py
+   ```
+
+   Or add the metadata to the top of the Space's `README.md` yourself:
 
    ```yaml
    ---
    title: NLLB Translator
    emoji: 🌐
-   colorFrom: indigo
-   colorTo: purple
+   colorFrom: blue
+   colorTo: blue
    sdk: docker
    app_port: 7860
    pinned: false
    ---
    ```
 
-4. **(Optional) Enable the free API engines** — add repo *Secrets* in Space settings:
-   - `GEMINI_API_KEY` — from <https://aistudio.google.com/apikey> (free, no card)
-   - `GROQ_API_KEY` — from <https://console.groq.com/keys> (free, no card)
+3. **(Optional) Server-side keys** — add Space *Secrets* to turn cloud engines on
+   for every visitor:
+   - `GEMINI_API_KEY` — <https://aistudio.google.com/apikey> (free tier)
+   - `GROQ_API_KEY` — <https://console.groq.com/keys> (free tier)
+   - `OPENROUTER_API_KEY` — <https://openrouter.ai/keys>
+   - `OPENAI_API_KEY` — <https://platform.openai.com/api-keys> (paid)
 
-   Without these, only the local **NLLB** engine shows up — which is enough for a
-   working demo. Add the keys to unlock the Gemini / Groq engines in the dropdown.
+   You don't need any of them: NLLB-200 and Hy-MT2 work out of the box, and
+   visitors can paste their own keys in the app's **API keys** panel. Be careful
+   with server-side paid keys on a public Space — every visitor spends them.
 
 **Notes**
-- First build downloads + converts the model (~2.4 GB) — a one-time slow build.
-- Free CPU Spaces sleep after ~2 days idle; they wake on the next visit.
-- The NLLB engine is light enough for the free CPU tier. Heavier local engines
-  (e.g. MADLAD-400) should be run on your own machine / a GPU host instead.
+- The first build downloads the models (NLLB ~2.4 GB to convert, Hy-MT2 ~1.1 GB).
+- Free CPU Spaces sleep after ~2 days idle and wake on the next visit; the first
+  translation after a wake-up also loads the model, so it takes a few seconds.
+- Both local engines fit the free CPU tier (2 vCPU / 16 GB).
 
 ---
 
-## Option B — Split: Vercel (frontend) + Space/host (backend)
+## Option B — Split: Vercel (frontend) + Docker host (backend)
 
-1. **Backend** anywhere that runs the [`backend/Dockerfile`](backend/Dockerfile)
-   (a Docker Space, Render, Fly.io…). Set API-key secrets as needed.
-2. **Frontend** on Vercel: set `NEXT_PUBLIC_API_BASE` to the backend URL, deploy
-   the `frontend/` directory. (Leave `NEXT_OUTPUT_EXPORT` unset so Vercel builds
-   a normal Next app.)
+1. **Backend** anywhere that runs [`backend/Dockerfile`](backend/Dockerfile)
+   (Render, Fly.io, a VM…). Set API-key secrets as needed.
+2. **Frontend** on Vercel: set `NEXT_PUBLIC_API_BASE` to the backend URL and
+   deploy the `frontend/` directory. (Leave `NEXT_OUTPUT_EXPORT` unset so Vercel
+   builds a normal Next app.)
 3. Set `CORS_ORIGINS` on the backend to your Vercel URL.
 
 ---

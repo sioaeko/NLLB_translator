@@ -1,8 +1,8 @@
 """Google Gemini engine — free API tier, no self-hosting.
 
-Uses Gemini's generous free tier (no credit card). Strong on Korean / CJK and
-low-resource prose. Available whenever ``GEMINI_API_KEY`` is set. Text is sent to
-Google, so this engine is not private.
+Gemini 3.5 Flash-Lite is on the free tier (no credit card) and strong on Korean
+/ CJK. Available whenever ``GEMINI_API_KEY`` is set or the client sends a key.
+Text is sent to Google, so this engine is not private.
 """
 
 from __future__ import annotations
@@ -11,46 +11,47 @@ import os
 
 import httpx
 
-from languages import name_for
-from providers.base import TranslationProvider
+from providers.base import SYSTEM_PROMPT, TranslationProvider, clean_output, translation_prompt
 
-MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
+MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
 ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
 class GeminiProvider(TranslationProvider):
     id = "gemini"
-    name = "Gemini 2.5 Flash-Lite"
+    name = "Gemini 3.5 Flash-Lite"
     kind = "api"
-    description = "Google Gemini · free API tier · excellent for Korean/CJK"
+    description = "Google · free API tier · strong on Korean & CJK"
     private = False
     key_field = "gemini"
-    setup_hint = "Add a Gemini key in Settings (free at aistudio.google.com/apikey)"
+    setup_hint = "Add a Gemini key under API keys (free at aistudio.google.com/apikey)"
 
     def is_available(self) -> bool:
         return bool(os.environ.get("GEMINI_API_KEY"))
 
-    def translate(self, text: str, src: str, tgt: str, api_key: str | None = None) -> str:
+    def translate(self, text, src, tgt, api_key=None, model=None) -> str:
         key = api_key or os.environ.get("GEMINI_API_KEY")
         if not key:
             raise ValueError("No Gemini API key provided.")
-        prompt = (
-            f"Translate the following text from {name_for(src)} to "
-            f"{name_for(tgt)}. Output ONLY the translation, with no notes, "
-            f"quotes, or explanations.\n\n{text}"
-        )
-        url = f"{ENDPOINT}/{MODEL}:generateContent?key={key}"
         resp = httpx.post(
-            url,
+            f"{ENDPOINT}/{MODEL}:generateContent",
+            # Header, not ?key=, so the key never lands in URLs or access logs.
+            headers={"x-goog-api-key": key},
             json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.2},
+                "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+                "contents": [{"role": "user", "parts": [{"text": translation_prompt(text, src, tgt)}]}],
+                # Minimal thinking keeps Flash-Lite at its lowest latency.
+                "generationConfig": {"thinkingConfig": {"thinkingLevel": "minimal"}},
             },
-            timeout=30.0,
+            timeout=60.0,
         )
         resp.raise_for_status()
         data = resp.json()
         try:
-            return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-        except (KeyError, IndexError) as exc:
-            raise RuntimeError(f"Unexpected Gemini response: {data}") from exc
+            parts = data["candidates"][0]["content"]["parts"]
+        except (KeyError, IndexError, TypeError) as exc:
+            reason = (data.get("promptFeedback") or {}).get("blockReason") or (
+                (data.get("candidates") or [{}])[0].get("finishReason")
+            )
+            raise RuntimeError(f"Gemini returned no text{f' ({reason})' if reason else ''}.") from exc
+        return clean_output("".join(p.get("text", "") for p in parts if not p.get("thought")))

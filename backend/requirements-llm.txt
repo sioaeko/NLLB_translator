@@ -1,0 +1,4 @@
+# Optional: local LLM engine (Hy-MT2) via llama.cpp. Install the prebuilt CPU
+# wheel so nothing has to compile:
+#   pip install -r requirements-llm.txt --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu --only-binary=llama-cpp-python
+llama-cpp-python==0.3.19

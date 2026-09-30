@@ -26,8 +26,8 @@ repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FRONTMATTER = """---
 title: NLLB Translator
 emoji: 🌐
-colorFrom: indigo
-colorTo: purple
+colorFrom: blue
+colorTo: blue
 sdk: docker
 app_port: 7860
 pinned: false
