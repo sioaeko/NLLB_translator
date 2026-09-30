@@ -39,7 +39,7 @@ RUN CMAKE_ARGS="-DGGML_NATIVE=OFF" CMAKE_BUILD_PARALLEL_LEVEL=2 \
       -r requirements-llm.txt --wheel-dir /wheels
 
 # ---- Ollama + model, downloaded once during the image build ----
-FROM ollama/ollama:0.35.0@sha256:2a6e883b917fc543389599dae79918f5cac9e14388905069982f44aa4f5625d01 AS ollama-dist
+FROM ollama/ollama:0.35.0@sha256:2a6e883b917fc543389599dae79918f5cac9e1438890506982f44aa4f5625d01 AS ollama-dist
 FROM python:3.11-slim AS ollama-model
 WORKDIR /prepare
 COPY --from=ollama-dist /usr/bin/ollama /usr/bin/ollama
