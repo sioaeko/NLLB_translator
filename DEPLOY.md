@@ -52,6 +52,8 @@ frontend host.
 
 **Notes**
 - The first build downloads the models (NLLB ~2.4 GB to convert, Hy-MT2 ~1.1 GB).
+- Docker also compiles a llama.cpp CPU wheel against Debian's libc and verifies
+  that it loads before publishing the image; later builds can reuse this layer.
 - Free CPU Spaces sleep after ~2 days idle and wake on the next visit; the first
   translation after a wake-up also loads the model, so it takes a few seconds.
 - Both local engines fit the free CPU tier (2 vCPU / 16 GB).

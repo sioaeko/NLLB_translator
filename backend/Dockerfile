@@ -1,12 +1,23 @@
 # Backend-only image (used by docker-compose and split deployments).
+FROM python:3.11-slim AS llama
+WORKDIR /build
+COPY requirements-llm.txt ./
+# Match Debian's libc instead of relying on a potentially musl-linked CPU wheel.
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential cmake \
+ && rm -rf /var/lib/apt/lists/*
+RUN CMAKE_ARGS="-DGGML_NATIVE=OFF" CMAKE_BUILD_PARALLEL_LEVEL=2 \
+    pip wheel --no-cache-dir --no-deps --no-binary=llama-cpp-python \
+      -r requirements-llm.txt --wheel-dir /wheels
+
 FROM python:3.11-slim
 
 WORKDIR /app
 
 COPY requirements.txt requirements-convert.txt requirements-llm.txt ./
+COPY --from=llama /wheels /wheels
 RUN pip install --no-cache-dir -r requirements.txt \
- && pip install --no-cache-dir -r requirements-llm.txt \
-      --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu --only-binary=llama-cpp-python \
+ && pip install --no-cache-dir /wheels/*.whl \
+ && rm -rf /wheels \
  && pip install --no-cache-dir -r requirements-convert.txt --extra-index-url https://download.pytorch.org/whl/cpu
 # libgomp: OpenMP runtime for the llama.cpp CPU wheel. patchelf clears the
 # executable-stack flag some hardened container runtimes refuse.
@@ -14,6 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 patche
  && find /usr/local/lib/python3.11/site-packages -name '*.so*' \( -path '*ctranslate2*' -o -path '*llama_cpp*' \) \
       -exec patchelf --clear-execstack {} + \
  && apt-get purge -y patchelf && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+RUN python -c "from llama_cpp import Llama"
 
 COPY . .
 

@@ -27,21 +27,34 @@ RUN apt-get update && apt-get install -y --no-install-recommends patchelf \
 RUN python convert_model.py   # ./models/nllb-200-distilled-600M-int8
 RUN python fetch_hymt.py      # ./models/hy-mt2-1.8b/Hy-MT2-1.8B-Q4_K_M.gguf (~1.1 GB)
 
-# ---- Stage 3: lean runtime (no torch) ----
+# ---- Build llama.cpp against the same libc as the runtime ----
+# The third-party CPU wheel can depend on musl, which Debian does not provide.
+FROM python:3.11-slim AS llama
+WORKDIR /build
+COPY backend/requirements-llm.txt ./
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential cmake \
+ && rm -rf /var/lib/apt/lists/*
+RUN CMAKE_ARGS="-DGGML_NATIVE=OFF" CMAKE_BUILD_PARALLEL_LEVEL=2 \
+    pip wheel --no-cache-dir --no-deps --no-binary=llama-cpp-python \
+      -r requirements-llm.txt --wheel-dir /wheels
+
+# ---- Lean runtime (no torch or compiler) ----
 FROM python:3.11-slim AS runtime
 WORKDIR /app
 ENV STATIC_DIR=/app/static \
     HF_HUB_DISABLE_SYMLINKS_WARNING=1
 COPY backend/requirements.txt backend/requirements-llm.txt ./
+COPY --from=llama /wheels /wheels
 RUN pip install --no-cache-dir -r requirements.txt \
- && pip install --no-cache-dir -r requirements-llm.txt \
-      --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu --only-binary=llama-cpp-python
+ && pip install --no-cache-dir /wheels/*.whl \
+ && rm -rf /wheels
 # libgomp: OpenMP runtime the llama.cpp CPU wheel links against.
 # patchelf: same execstack fix for the native inference libraries.
 RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 patchelf \
  && find /usr/local/lib/python3.11/site-packages -name '*.so*' \( -path '*ctranslate2*' -o -path '*llama_cpp*' \) \
       -exec patchelf --clear-execstack {} + \
  && apt-get purge -y patchelf && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+RUN python -c "from llama_cpp import Llama"
 COPY backend/ ./
 COPY --from=model /m/models ./models
 COPY --from=frontend /fe/out ./static
