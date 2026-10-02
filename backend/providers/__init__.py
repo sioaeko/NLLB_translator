@@ -8,6 +8,7 @@ report themselves available.
 from __future__ import annotations
 
 from providers.base import ProviderInfo, TranslationProvider
+from ollama_models import configured_models
 from providers.gemini import GeminiProvider
 from providers.groq import GroqGptOssProvider, GroqQwenProvider
 from providers.hymt import HyMTProvider
@@ -21,7 +22,7 @@ from providers.openrouter import OpenRouterProvider
 _PROVIDERS: list[TranslationProvider] = [
     NLLBProvider(),
     HyMTProvider(),
-    OllamaProvider(),
+    *(OllamaProvider(config) for config in configured_models()),
     GeminiProvider(),
     GroqQwenProvider(),
     GroqGptOssProvider(),

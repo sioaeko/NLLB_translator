@@ -8,9 +8,9 @@ recommended one for a live demo.
 ## Option A — HuggingFace Spaces (single container)
 
 The root [`Dockerfile`](Dockerfile) builds everything into one image: the static
-Next.js frontend, the FastAPI backend, and three local models (NLLB-200 as
-CTranslate2 int8, Hy-MT2 as a ~1.1 GB GGUF run by llama.cpp, and TranslateGemma
-4B as a ~3.3 GB Ollama model). FastAPI serves the
+Next.js frontend, the FastAPI backend, and five local models (NLLB-200 as
+CTranslate2 int8, Hy-MT2 as a ~1.1 GB GGUF run by llama.cpp, plus TranslateGemma
+4B ~3.3 GB, Qwen3.5 2B ~1.9 GB, and Qwen3 1.7B ~1.4 GB through Ollama). FastAPI serves the
 UI and the API from the same origin, so there's no CORS setup or separate
 frontend host.
 
@@ -47,13 +47,14 @@ frontend host.
    - `OPENROUTER_API_KEY` — <https://openrouter.ai/keys>
    - `OPENAI_API_KEY` — <https://platform.openai.com/api-keys> (paid)
 
-   You don't need any of them: NLLB-200, Hy-MT2, and TranslateGemma work out of the box, and
+   You don't need any of them: all five local engines work out of the box, and
    visitors can paste their own keys in the app's **API keys** panel. Be careful
    with server-side paid keys on a public Space — every visitor spends them.
 
 **Notes**
 - The first build downloads the models (NLLB ~2.4 GB to convert, Hy-MT2 ~1.1 GB,
-  TranslateGemma ~3.3 GB) and the pinned Ollama runtime.
+  TranslateGemma ~3.3 GB, Qwen3.5 2B ~1.9 GB, Qwen3 1.7B ~1.4 GB) and the pinned
+  Ollama runtime. The Qwen tags are `qwen3.5:2b-q4_K_M` and `qwen3:1.7b`.
 - Docker also compiles a llama.cpp CPU wheel against Debian's libc and verifies
   that it loads before publishing the image; later builds can reuse this layer.
 - Free CPU Spaces sleep after ~2 days idle and wake on the next visit; the first
@@ -61,10 +62,15 @@ frontend host.
 - Ollama binds only to `127.0.0.1:11434`; visitors use it through the translation
   API. Ollama cloud features are disabled. A supervisor starts both services and
   shuts down the container if either service exits.
-- TranslateGemma uses a 4K context, 2 CPU threads, one inference at a time, and
-  unloads after 2 idle minutes. Its model is already in the image when a Space
-  wakes up. The configured model must be installed before the UI enables it.
-- On free CPU hardware (2 vCPU / 16 GB), TranslateGemma is intended for short
+- Ollama loads at most one model and runs one inference at a time. All three
+  Ollama engines use a 4K context, 2 CPU threads, and unload after 2 idle minutes.
+  Qwen thinking is disabled for translation. All model files are already in the
+  image when a Space wakes up; switching models may add loading time.
+- `OLLAMA_MODEL`, `OLLAMA_QWEN35_MODEL`, and `OLLAMA_QWEN3_MODEL` override the
+  TranslateGemma, Qwen3.5, and Qwen3 tags respectively. Each configured model must
+  be installed before the UI enables its engine; changing a runtime variable
+  alone does not download a different model.
+- On free CPU hardware (2 vCPU / 16 GB), the Ollama engines are intended for short
   translations; response times grow with text length and concurrent visitors.
 
 ---
@@ -72,7 +78,10 @@ frontend host.
 ## Option B — Split: Vercel (frontend) + Docker host (backend)
 
 1. **Backend** anywhere that runs [`backend/Dockerfile`](backend/Dockerfile)
-   (Render, Fly.io, a VM…). Set API-key secrets as needed.
+   (Render, Fly.io, a VM…). Set API-key secrets as needed. This backend-only image
+   bundles NLLB and Hy-MT2. To enable the three Ollama engines, run a separate
+   Ollama service, set `OLLAMA_HOST` to its reachable URL, and pull
+   `translategemma:4b`, `qwen3.5:2b-q4_K_M`, and `qwen3:1.7b` there.
 2. **Frontend** on Vercel: set `NEXT_PUBLIC_API_BASE` to the backend URL and
    deploy the `frontend/` directory. (Leave `NEXT_OUTPUT_EXPORT` unset so Vercel
    builds a normal Next app.)
@@ -88,3 +97,6 @@ docker compose up --build
 ```
 
 Frontend on <http://localhost:3000>, backend on <http://localhost:8000>.
+Compose uses the backend-only image; Ollama needs the separate service described
+above. `OLLAMA_HOST` must be reachable from the backend container, not just from
+the host browser.

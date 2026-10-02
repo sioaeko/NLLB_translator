@@ -13,6 +13,8 @@ from urllib.error import URLError
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
+from ollama_models import configured_models
+
 
 def model_present(payload: dict, model: str) -> bool:
     def normalized(name: str) -> str:
@@ -92,7 +94,7 @@ def main() -> int:
     if urlparse(host).hostname not in {"127.0.0.1", "localhost", "::1"}:
         raise ValueError("The bundled Ollama server must bind to a loopback address")
     os.environ["OLLAMA_HOST"] = host
-    model = os.environ.get("OLLAMA_MODEL", "translategemma:4b")
+    models = list(dict.fromkeys(config.model for config in configured_models()))
     stop = Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: stop.set())
@@ -102,19 +104,22 @@ def main() -> int:
         children.append(server)
         wait_ready(server, host, stop)
         if "--pull" in sys.argv[1:]:
-            pull = spawn(["ollama", "pull", model])
-            children.append(pull)
-            deadline = time.monotonic() + 1800
-            while pull.poll() is None:
-                if stop.wait(0.5):
-                    raise InterruptedError("Model download interrupted")
-                if server.poll() is not None or time.monotonic() >= deadline:
-                    raise RuntimeError("Ollama model download failed or timed out")
-            if pull.returncode:
-                raise RuntimeError(f"Ollama pull failed (status {pull.returncode})")
-        if not model_present(read_models(host), model):
-            raise RuntimeError(f"The bundled Ollama model is missing: {model}")
-        print(f"Ollama model ready: {model}", flush=True)
+            for model in models:
+                pull = spawn(["ollama", "pull", model])
+                children.append(pull)
+                deadline = time.monotonic() + 1800
+                while pull.poll() is None:
+                    if stop.wait(0.5):
+                        raise InterruptedError("Model download interrupted")
+                    if server.poll() is not None or time.monotonic() >= deadline:
+                        raise RuntimeError("Ollama model download failed or timed out")
+                if pull.returncode:
+                    raise RuntimeError(f"Ollama pull failed for {model} (status {pull.returncode})")
+        installed = read_models(host)
+        for model in models:
+            if not model_present(installed, model):
+                raise RuntimeError(f"The bundled Ollama model is missing: {model}")
+            print(f"Ollama model ready: {model}", flush=True)
         if "--pull" in sys.argv[1:]:
             return 0
         children.append(spawn([

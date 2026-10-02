@@ -26,6 +26,8 @@ const ICONS: Record<string, { path: string; fill: string }> = {
   nllb: { path: META, fill: "#0866FF" },
   hymt: { path: HUNYUAN, fill: "#0052D9" },
   ollama: { path: OLLAMA, fill: "currentColor" },
+  ollama_qwen35: { path: QWEN, fill: "#615CED" },
+  ollama_qwen3: { path: QWEN, fill: "#615CED" },
   gemini: { path: GEMINI, fill: "url(#gem-grad)" },
   groq_qwen: { path: QWEN, fill: "#615CED" },
   groq_gptoss: { path: OPENAI, fill: "currentColor" },

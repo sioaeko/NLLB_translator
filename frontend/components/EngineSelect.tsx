@@ -11,6 +11,8 @@ const BLURB: Record<string, string> = {
   nllb: "Meta · 200 languages · fastest",
   hymt: "Tencent · 38 languages · most natural",
   ollama: "Google · 55 languages · runs on this server",
+  ollama_qwen35: "Alibaba · compact 2B · runs on this server",
+  ollama_qwen3: "Alibaba · lightweight 1.7B · runs on this server",
   gemini: "Google · free tier · strong on Korean & CJK",
   groq_qwen: "Alibaba · free on Groq · strong on CJK",
   groq_gptoss: "OpenAI open-weight · free on Groq",

@@ -22,11 +22,16 @@ export const SENT_TO: Record<string, string> = {
 export const OPENROUTER_MODEL_KEY = "openrouter_model";
 export const DEFAULT_OPENROUTER_MODEL = "google/gemma-4-31b-it:free";
 
-/** Checked against OpenRouter's catalogue, October 2026. */
+/** USD per 1M input / output tokens; checked October 2, 2026. Rates can change. */
 export const OPENROUTER_PRESETS = [
   { id: "google/gemma-4-31b-it:free", label: "Gemma 4 31B", price: "free" },
+  { id: "google/gemma-4-26b-a4b-it:free", label: "Gemma 4 26B A4B", price: "free" },
   { id: "qwen/qwen3.8-27b:free", label: "Qwen 3.8 27B", price: "free" },
-  { id: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash", price: "$0.08 / $0.16" },
+  { id: "nvidia/nemotron-3.5-lightning:free", label: "Nemotron 3.5 Lightning", price: "free" },
+  { id: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash", price: "$0.042 / $0.084" },
+  { id: "deepseek/deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", price: "$0.01725 / $0.75" },
+  { id: "qwen/qwen3.8-flash", label: "Qwen 3.8 Flash", price: "$0.15 / $0.47" },
+  { id: "z-ai/glm-5.3-flash", label: "GLM 5.3 Flash", price: "$0.15 / $0.50" },
   { id: "openai/gpt-6-luna", label: "GPT-6 Luna", price: "$0.10 / $0.50" },
 ];
 

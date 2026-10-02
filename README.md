@@ -24,7 +24,7 @@
 
 ---
 
-Pick the translation **engine per request**: **NLLB-200**, Tencent's **Hy-MT2**, and **TranslateGemma 4B** run inside the Space (no third-party API or key needed). TranslateGemma uses a bundled Ollama server. Cloud models — **Gemini**, **Qwen** and **GPT-OSS** on Groq, anything on **OpenRouter**, or OpenAI's low-cost **GPT-6 Luna** — work with your own key. A FastAPI backend with a small provider registry does the routing; a Next.js + Tailwind frontend puts it all on one surface.
+Pick the translation **engine per request**: **NLLB-200**, Tencent's **Hy-MT2**, **TranslateGemma 4B**, **Qwen3.5 2B**, and **Qwen3 1.7B** run inside the Space (no third-party API or key needed). TranslateGemma and the two small Qwen models use a bundled Ollama server. Cloud models — **Gemini**, **Qwen** and **GPT-OSS** on Groq, anything on **OpenRouter**, or OpenAI's low-cost **GPT-6 Luna** — work with your own key. A FastAPI backend with a small provider registry does the routing; a Next.js + Tailwind frontend puts it all on one surface.
 
 > This is a v2 rebuild of the original Gradio-based NLLB translator, re-architected into a multi-engine FastAPI + Next.js web app.
 
@@ -35,6 +35,8 @@ Pick the translation **engine per request**: **NLLB-200**, Tencent's **Hy-MT2**,
 | **NLLB-200 (600M)** | 🖥️ this server | model converted | Meta · 200 languages · fastest |
 | **Hy-MT2 (1.8B)** | 🖥️ this server | GGUF downloaded | Tencent, 2026 · 38 languages incl. Korean · most natural phrasing |
 | **TranslateGemma 4B** | 🖥️ this Space (Ollama) | bundled model ready | Google, 2026 · 55 languages · slower on free CPU |
+| **Qwen3.5 2B** | 🖥️ this Space (Ollama) | bundled model ready | 201 languages and dialects · Q4_K_M, ~1.9 GB · thinking disabled |
+| **Qwen3 1.7B** | 🖥️ this Space (Ollama) | bundled model ready | 119 languages and dialects incl. Korean · Q4_K_M, ~1.4 GB · thinking disabled |
 | **Gemini 3.5 Flash-Lite** | ☁️ Google | Gemini key | free tier · strong on Korean / CJK |
 | **Qwen 3.8 27B** | ☁️ Groq | Groq key | free tier · strong on CJK |
 | **GPT-OSS 120B** | ☁️ Groq | Groq key | free tier · very fast |
@@ -43,13 +45,14 @@ Pick the translation **engine per request**: **NLLB-200**, Tencent's **Hy-MT2**,
 
 - **Keys** can live on the server (env vars / Space secrets) or be pasted by each visitor in the app's **API keys** panel. Pasted keys stay in that browser and are passed through per request — the server never stores them.
 - **Groq retires models often.** If a configured Groq model disappears, the backend looks up Groq's live catalogue and switches to the newest model of the same family.
+- **OpenRouter presets** include free Gemma 4 26B A4B and Nemotron 3.5 Lightning, plus Qwen 3.8 Flash, GLM 5.3 Flash, and DeepSeek V4.1 Flash alongside the existing choices. You can also enter a custom model ID; all OpenRouter models use your OpenRouter key.
 - Every engine **reports its own availability**; the UI only offers the ready ones and tells you how to enable the rest. Adding another engine is one file (see [below](#adding-an-engine)).
 
 ## ✨ Features
 
 - **Multiple engines, one UI** — switch engines mid-session; local and cloud side by side, grouped.
 - **200 languages** — the full FLORES-200 set, with a searchable picker and common languages pinned.
-- **No third-party API for local engines** — NLLB and Hy-MT2 translate on the server; cloud engines are labelled with where the text goes.
+- **No third-party API for local engines** — all five local engines translate on the server; cloud engines are labelled with where the text goes.
 - **Built for typing** — debounced auto-translate, auto-growing panes, one-click example phrases, skeleton loading, swap, copy, dark mode.
 - **Keyboard and screen-reader friendly** — arrow keys / Enter / Esc in every picker, labelled controls, live-region output, correct `lang` / `dir` on text.
 - **Deploy free** — single-container HuggingFace Space, or split Vercel + backend. See [DEPLOY.md](DEPLOY.md).
@@ -63,6 +66,8 @@ Pick the translation **engine per request**: **NLLB-200**, Tencent's **Hy-MT2**,
 │  lang picker │  (+ user keys)  │   ├─ nllb         🖥️ CTranslate2 int8     │
 └──────────────┘                 │   ├─ hymt         🖥️ llama.cpp (GGUF)     │
                                  │   ├─ ollama       🖥️ TranslateGemma      │
+                                 │   ├─ ollama_qwen35 🖥️ Qwen3.5 2B        │
+                                 │   ├─ ollama_qwen3  🖥️ Qwen3 1.7B        │
                                  │   ├─ gemini       ☁️ Google               │
                                  │   ├─ groq_qwen    ☁️ Groq                 │
                                  │   ├─ groq_gptoss  ☁️ Groq                 │
@@ -79,7 +84,7 @@ NLLB-Trans/
 │   ├── languages.py         FLORES-200 code ↔ name mapping
 │   ├── convert_model.py     NLLB: HF → CTranslate2 int8
 │   ├── fetch_hymt.py        Hy-MT2: download the official GGUF
-│   ├── ollama_service.py    Space: prepare Ollama model and supervise services
+│   ├── ollama_service.py    Space: prepare Ollama models and supervise services
 │   └── requirements-llm.txt llama.cpp bindings for Hy-MT2 (optional)
 ├── frontend/                Next.js (App Router) + Tailwind CSS
 │   ├── app/                 page, layout, favicon
@@ -137,9 +142,15 @@ Open <http://localhost:3000>. With no local model and no keys the app still runs
 ## 🔌 Enabling the other engines
 
 ```bash
-# TranslateGemma is bundled in the Space. For manual dev or a separate Ollama:
-ollama pull translategemma:4b          # any other model works too:
-export OLLAMA_MODEL=translategemma:4b  # OLLAMA_MODEL=qwen3 etc.
+# All three Ollama models are bundled in the Space. For manual dev, install
+# and start Ollama, then pull whichever engines you want to enable:
+ollama pull translategemma:4b
+ollama pull qwen3.5:2b-q4_K_M
+ollama pull qwen3:1.7b
+# Optional per-engine overrides (the selected tags must already be installed):
+export OLLAMA_MODEL=translategemma:4b
+export OLLAMA_QWEN35_MODEL=qwen3.5:2b-q4_K_M
+export OLLAMA_QWEN3_MODEL=qwen3:1.7b
 
 # Cloud engines — paste keys in the app, or set them server-side:
 #   GEMINI_API_KEY      https://aistudio.google.com/apikey   (free tier)
@@ -159,6 +170,9 @@ export OLLAMA_MODEL=translategemma:4b  # OLLAMA_MODEL=qwen3 etc.
 
 Language codes are FLORES-200 (`<iso639-3>_<script>`), e.g. `eng_Latn`, `kor_Hang`, `jpn_Jpan`. Omit `engine` to use the first available one. Cloud engines accept a per-request key in `X-Gemini-Key`, `X-Groq-Key`, `X-OpenRouter-Key` (plus `X-OpenRouter-Model`) or `X-OpenAI-Key`.
 
+The Ollama engine IDs are `ollama` (TranslateGemma), `ollama_qwen35`, and
+`ollama_qwen3`. Each reports availability independently when its model is installed.
+
 ```bash
 curl -X POST http://localhost:8000/api/translate \
   -H "Content-Type: application/json" \
@@ -176,8 +190,8 @@ automatically once it's available.
 
 ## ☁️ Deploy
 
-- **HuggingFace Space (single container)** — the root [`Dockerfile`](Dockerfile) builds the static frontend, the API, and all three local models into one image served from one origin. Ollama stays internal to the container, processes one request at a time, and unloads TranslateGemma after two idle minutes.
-- **Split** — frontend on Vercel + backend on any Docker host.
+- **HuggingFace Space (single container)** — the root [`Dockerfile`](Dockerfile) builds the static frontend, the API, and all five local models into one image served from one origin. Ollama stays internal to the container, loads one model at a time, and unloads it after two idle minutes. The Ollama engines use a 4K context and two CPU threads; Qwen thinking is disabled for translation.
+- **Split** — frontend on Vercel + backend on any Docker host. The backend-only image includes NLLB and Hy-MT2; Ollama requires a separate service and model pulls.
 
 Full steps, including Space metadata and secrets, in **[DEPLOY.md](DEPLOY.md)**.
 
@@ -185,7 +199,7 @@ Full steps, including Space metadata and secrets, in **[DEPLOY.md](DEPLOY.md)**.
 
 `FastAPI` · `CTranslate2` (int8) · `llama.cpp` · `transformers` · `Next.js 15` · `React 19` · `Tailwind CSS` · `Docker`
 
-Engines: [NLLB-200](https://huggingface.co/facebook/nllb-200-distilled-600M) · [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B) · [TranslateGemma](https://ollama.com/library/translategemma) · [Gemini](https://ai.google.dev) · [Groq](https://groq.com) · [OpenRouter](https://openrouter.ai) · [OpenAI](https://platform.openai.com)
+Engines: [NLLB-200](https://huggingface.co/facebook/nllb-200-distilled-600M) · [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B) · [TranslateGemma](https://ollama.com/library/translategemma) · [Qwen3.5 2B](https://ollama.com/library/qwen3.5:2b-q4_K_M) · [Qwen3 1.7B](https://ollama.com/library/qwen3:1.7b) · [Gemini](https://ai.google.dev) · [Groq](https://groq.com) · [OpenRouter](https://openrouter.ai) · [OpenAI](https://platform.openai.com)
 
 ## 📜 License
 
@@ -194,3 +208,5 @@ NLLB-200 is [CC-BY-NC 4.0](https://huggingface.co/facebook/nllb-200-distilled-60
 Hy-MT2 is [Apache-2.0](https://huggingface.co/tencent/Hy-MT2-1.8B), TranslateGemma
 follows the Gemma Terms of Use, and the cloud engines are used through their
 providers' APIs under their respective terms.
+The local [Qwen3.5 2B](https://huggingface.co/Qwen/Qwen3.5-2B) and
+[Qwen3 1.7B](https://huggingface.co/Qwen/Qwen3-1.7B) weights are Apache-2.0.

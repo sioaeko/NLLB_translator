@@ -1,8 +1,8 @@
 """Ollama engine — any local LLM, fully offline.
 
-Defaults to Google's TranslateGemma 4B (2026, 55 languages), a model built for
-translation; any other Ollama model works too via ``OLLAMA_MODEL``. Pull it
-first with ``ollama pull <model>``.
+Separate engines for TranslateGemma 4B, Qwen3.5 2B, and Qwen3 1.7B. Each can
+use a different Ollama tag via its environment override. Pull selected tags
+first with ``ollama pull <model>`` when running outside the Space image.
 
 Available when the configured model is installed on the Ollama server. Text never leaves the
 machine, so this engine is private.
@@ -16,19 +16,19 @@ from functools import lru_cache
 import httpx
 
 from ollama_service import model_present
+from ollama_models import OllamaModel, configured_models
 from languages import bcp47, name_for
 from providers.base import SYSTEM_PROMPT, TranslationProvider, clean_output, translation_prompt
 
 HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
 if "://" not in HOST:
     HOST = "http://" + HOST
-MODEL = os.environ.get("OLLAMA_MODEL", "translategemma:4b")
 CONTEXT_LENGTH = int(os.environ.get("OLLAMA_CONTEXT_LENGTH", "4096"))
 NUM_THREADS = int(os.environ.get("OLLAMA_TRANSLATE_THREADS", "0"))
 
 
-def _messages(text: str, src: str, tgt: str) -> list[dict]:
-    if "translategemma" in MODEL:
+def _messages(model: str, text: str, src: str, tgt: str) -> list[dict]:
+    if "translategemma" in model:
         # TranslateGemma's documented prompt format.
         s, t = name_for(src), name_for(tgt)
         prompt = (
@@ -51,18 +51,26 @@ class OllamaProvider(TranslationProvider):
     kind = "local"
     description = "Google TranslateGemma · local Ollama inference"
     private = True
-    setup_hint = "Install Ollama and `ollama pull " + MODEL + "`"
+
+    def __init__(self, config: OllamaModel | None = None):
+        config = config or configured_models()[0]
+        self.id = config.id
+        self.model = config.model
+        self.name = config.name
+        self.description = config.description
+        self.setup_hint = f"Install Ollama and `ollama pull {self.model}`"
 
     def display_name(self) -> str:
-        if MODEL.startswith("translategemma"):
-            size = MODEL.split(":", 1)[1].upper() if ":" in MODEL else "4B"
+        if self.model.startswith("translategemma"):
+            size = self.model.split(":", 1)[1].upper() if ":" in self.model else "4B"
             return f"TranslateGemma {size} (Ollama)"
-        return f"{MODEL} (Ollama)"
+        names = {"qwen3.5:2b-q4_K_M": "Qwen3.5 2B", "qwen3:1.7b": "Qwen3 1.7B"}
+        return f"{names.get(self.model, self.model)} (Ollama)"
 
     def is_available(self) -> bool:
         try:
             resp = httpx.get(f"{HOST}/api/tags", timeout=0.4)
-            return resp.status_code == 200 and model_present(resp.json(), MODEL)
+            return resp.status_code == 200 and model_present(resp.json(), self.model)
         except (httpx.HTTPError, ValueError, TypeError, AttributeError):
             return False
 
@@ -74,14 +82,18 @@ class OllamaProvider(TranslationProvider):
         options = {"temperature": 0.2, "num_ctx": CONTEXT_LENGTH}
         if NUM_THREADS > 0:
             options["num_thread"] = NUM_THREADS
+        payload = {
+            "model": self.model,
+            "stream": False,
+            "options": options,
+            "messages": _messages(self.model, text, src, tgt),
+        }
+        # Qwen thinking consumes scarce CPU and may loop on small models.
+        if self.model.split(":", 1)[0] in {"qwen3", "qwen3.5"}:
+            payload["think"] = False
         resp = httpx.post(
             f"{HOST}/api/chat",
-            json={
-                "model": MODEL,
-                "stream": False,
-                "options": options,
-                "messages": _messages(text, src, tgt),
-            },
+            json=payload,
             timeout=120.0,
         )
         resp.raise_for_status()

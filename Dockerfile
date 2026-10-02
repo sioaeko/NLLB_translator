@@ -1,5 +1,5 @@
 # Single-container build: Next.js static frontend + FastAPI backend + local
-# models (NLLB-200 via CTranslate2, Hy-MT2 via llama.cpp, TranslateGemma via Ollama), suitable for a
+# models (NLLB-200, Hy-MT2, TranslateGemma and two compact Qwen models), suitable for a
 # HuggingFace Space (Docker SDK) or any single-host deploy.
 
 # ---- Stage 1: build the static frontend ----
@@ -48,7 +48,7 @@ ENV OLLAMA_HOST=http://127.0.0.1:11434 \
     OLLAMA_MODELS=/opt/ollama/models \
     OLLAMA_MODEL=translategemma:4b \
     OLLAMA_NO_CLOUD=1
-COPY backend/ollama_service.py ./
+COPY backend/ollama_service.py backend/ollama_models.py ./
 RUN python ollama_service.py --pull
 
 # ---- Runtime (no torch or compiler) ----
