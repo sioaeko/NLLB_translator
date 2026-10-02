@@ -45,7 +45,7 @@ Pick the translation **engine per request**: **NLLB-200**, Tencent's **Hy-MT2**,
 
 - **Keys** can live on the server (env vars / Space secrets) or be pasted by each visitor in the app's **API keys** panel. Pasted keys stay in that browser and are passed through per request — the server never stores them.
 - **Groq retires models often.** If a configured Groq model disappears, the backend looks up Groq's live catalogue and switches to the newest model of the same family.
-- **OpenRouter presets** include free Gemma 4 26B A4B and Nemotron 3.5 Lightning, plus Qwen 3.8 Flash, GLM 5.3 Flash, and DeepSeek V4.1 Flash alongside the existing choices. You can also enter a custom model ID; all OpenRouter models use your OpenRouter key.
+- **OpenRouter presets** include free Gemma 4 26B A4B, plus Qwen 3.8 Flash, Qwen 3.7 Flash, GLM 5.3 Flash, and DeepSeek V4.1 Flash alongside the existing choices. You can also enter a custom model ID; all OpenRouter models use your OpenRouter key.
 - Every engine **reports its own availability**; the UI only offers the ready ones and tells you how to enable the rest. Adding another engine is one file (see [below](#adding-an-engine)).
 
 ## ✨ Features

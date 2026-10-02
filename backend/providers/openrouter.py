@@ -37,11 +37,6 @@ class OpenRouterProvider(TranslationProvider):
         slug = (model or DEFAULT_MODEL).strip()
         if not _SLUG.match(slug):
             raise ValueError(f"Not a valid OpenRouter model id: {slug!r}")
-        extra = {"temperature": 0.3}
-        # This preset otherwise emits reasoning in place of the translation.
-        # Leave custom model settings alone: reasoning controls vary by model.
-        if slug == "nvidia/nemotron-3.5-lightning:free":
-            extra["reasoning"] = {"enabled": False}
         return chat_translate(
             ENDPOINT,
             key,
@@ -50,5 +45,5 @@ class OpenRouterProvider(TranslationProvider):
             src,
             tgt,
             headers={"HTTP-Referer": APP_URL, "X-Title": "NLLB Translator"},
-            extra=extra,
+            extra={"temperature": 0.3},
         )
