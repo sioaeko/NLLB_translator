@@ -60,6 +60,9 @@ frontend host.
 - The build finishes llama.cpp compilation before converting NLLB, then prepares
   the Ollama models. NLLB conversion uses memory-efficient loading with Accelerate
   to reduce peak memory when the free builder has no cached model layer.
+- The free-CPU image includes Ollama's CPU runner and its licenses, without the
+  unused GPU payloads. Model preparation removes downloaded source checkpoints
+  from the same build layer after conversion to keep cache export smaller.
 - Free CPU Spaces sleep after ~2 days idle and wake on the next visit; the first
   translation after a wake-up also includes model-loading time.
 - Ollama binds only to `127.0.0.1:11434`; visitors use it through the translation

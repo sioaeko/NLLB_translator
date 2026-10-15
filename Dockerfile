@@ -38,8 +38,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends patchelf \
  && apt-get purge -y patchelf && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 # Compile and conversion must not compete for the free builder's memory.
 COPY --from=llama /wheels/.ready /tmp/llama-ready
-RUN python convert_model.py   # ./models/nllb-200-distilled-600M-int8
-RUN python fetch_hymt.py && touch /m/.models-ready
+RUN python convert_model.py && python fetch_hymt.py \
+ && rm -rf /root/.cache/huggingface \
+ && touch /m/.models-ready
 
 # ---- Ollama + model, downloaded once during the image build ----
 FROM ollama/ollama:0.35.0@sha256:2a6e883b917fc543389599dae79918f5cac9e1438890506982f44aa4f5625d01 AS ollama-dist
@@ -48,7 +49,14 @@ WORKDIR /prepare
 # Finish conversion before starting the large Ollama model pulls.
 COPY --from=model /m/.models-ready /tmp/models-ready
 COPY --from=ollama-dist /usr/bin/ollama /usr/bin/ollama
-COPY --from=ollama-dist /usr/lib/ollama /usr/lib/ollama
+# The free Space runs on CPU. Keep the CPU runner, shared libraries and licenses;
+# CUDA/MLX/Vulkan payload subdirectories make cache export needlessly large.
+COPY --from=ollama-dist /usr/lib/ollama/llama-server /usr/lib/ollama/llama-quantize /usr/lib/ollama/
+COPY --from=ollama-dist /usr/lib/ollama/lib*.so* /usr/lib/ollama/
+COPY --from=ollama-dist /usr/lib/ollama/*LICENSE* /usr/lib/ollama/
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 libopenblas0 \
+ && rm -rf /var/lib/apt/lists/* \
+ && /usr/lib/ollama/llama-server --version
 ENV OLLAMA_HOST=http://127.0.0.1:11434 \
     OLLAMA_MODELS=/opt/ollama/models \
     OLLAMA_MODEL=translategemma:4b \
@@ -88,8 +96,8 @@ RUN python -c "from llama_cpp import Llama"
 COPY backend/ ./
 COPY --from=model /m/models ./models
 COPY --from=frontend /fe/out ./static
-COPY --from=ollama-dist /usr/bin/ollama /usr/bin/ollama
-COPY --from=ollama-dist /usr/lib/ollama /usr/lib/ollama
+COPY --from=ollama-model /usr/bin/ollama /usr/bin/ollama
+COPY --from=ollama-model /usr/lib/ollama /usr/lib/ollama
 COPY --from=ollama-model /opt/ollama/models /opt/ollama/models
 EXPOSE 7860
 CMD ["python", "ollama_service.py"]
