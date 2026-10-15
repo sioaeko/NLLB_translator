@@ -12,11 +12,12 @@ from __future__ import annotations
 import logging
 import os
 import re
+from threading import Event
 
 import httpx
 
 from providers.base import TranslationProvider
-from providers.chat_api import chat_translate
+from providers.chat_api import chat_stream_translate, chat_translate
 
 API = "https://api.groq.com/openai/v1"
 log = logging.getLogger(__name__)
@@ -71,6 +72,29 @@ class _GroqEngine(TranslationProvider):
             log.warning("Groq model %s is gone; switching %s to %s", current, self.id, successor)
             _resolved[self.id] = successor
             return chat_translate(endpoint, key, successor, text, src, tgt, extra=self.extra)
+
+    def stream_translate(self, text, src, tgt, api_key=None, model=None, cancel: Event | None = None):
+        key = api_key or os.environ.get("GROQ_API_KEY")
+        if not key:
+            raise ValueError("No Groq API key provided.")
+        current = _resolved.get(self.id, self.model)
+        endpoint = f"{API}/chat/completions"
+        emitted = False
+        try:
+            for delta in chat_stream_translate(endpoint, key, current, text, src, tgt, extra=self.extra, cancel=cancel):
+                if cancel and cancel.is_set():
+                    return
+                emitted = True
+                yield delta
+        except httpx.HTTPStatusError as exc:
+            if emitted or (cancel and cancel.is_set()) or not _model_gone(exc.response):
+                raise
+            successor = self._successor(key)
+            if not successor or successor == current:
+                raise
+            log.warning("Groq model %s is gone; switching %s to %s", current, self.id, successor)
+            _resolved[self.id] = successor
+            yield from chat_stream_translate(endpoint, key, successor, text, src, tgt, extra=self.extra, cancel=cancel)
 
 
 class GroqQwenProvider(_GroqEngine):

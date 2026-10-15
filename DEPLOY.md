@@ -58,20 +58,57 @@ frontend host.
 - Docker also compiles a llama.cpp CPU wheel against Debian's libc and verifies
   that it loads before publishing the image; later builds can reuse this layer.
 - Free CPU Spaces sleep after ~2 days idle and wake on the next visit; the first
-  translation after a wake-up also loads the model, so it takes a few seconds.
+  translation after a wake-up also includes model-loading time.
 - Ollama binds only to `127.0.0.1:11434`; visitors use it through the translation
   API. Ollama cloud features are disabled. A supervisor starts both services and
   shuts down the container if either service exits.
 - Ollama loads at most one model and runs one inference at a time. All three
-  Ollama engines use a 4K context, 2 CPU threads, and unload after 2 idle minutes.
+  Ollama engines use a 4K context, 2 CPU threads, and unload after 10 idle minutes
+  (`OLLAMA_KEEP_ALIVE=10m`) to reduce reloads when reusing the same model.
   Qwen thinking is disabled for translation. All model files are already in the
   image when a Space wakes up; switching models may add loading time.
+- `HYMT_THREADS=2` and `CT2_THREADS=2` also limit Hy-MT2 and NLLB to the free
+  Space's CPU allocation. Hy-MT2 uses that limit for both prompt processing and
+  generation; NLLB uses one worker with beam size 4. Outside this image, leaving
+  either variable at 0 detects CPU affinity and cgroup v1/v2 quotas.
+- All local engines share one inference slot within the backend process.
+  Concurrent translations wait instead of running competing CPU inference jobs;
+  completed cache hits can return without waiting. Keep one backend worker on a
+  free CPU Space so each worker does not load its own models and inference slot.
 - `OLLAMA_MODEL`, `OLLAMA_QWEN35_MODEL`, and `OLLAMA_QWEN3_MODEL` override the
   TranslateGemma, Qwen3.5, and Qwen3 tags respectively. Each configured model must
   be installed before the UI enables its engine; changing a runtime variable
   alone does not download a different model.
 - On free CPU hardware (2 vCPU / 16 GB), the Ollama engines are intended for short
   translations; response times grow with text length and concurrent visitors.
+
+### Streaming, caching and cancellation
+
+The frontend calls `POST /api/translate/stream`, which returns newline-delimited
+JSON (`application/x-ndjson`). LLM engines stream generated text; NLLB emits each
+completed line. Partial output can appear before the full request finishes, but
+cold starts and prompt processing still take time. The original
+`POST /api/translate` JSON endpoint remains supported.
+
+Local result caches are bounded and live only in server memory: up to 2,048
+completed lines each for NLLB and Hy-MT2, and 256 completed translations per Ollama
+engine. Restarting the backend clears them. The browser also retains up to 32
+successful results in the current tab's memory; reloads or key/model-setting
+changes clear that cache. Incomplete, failed and canceled generation results are
+not cached, while already completed lines from a longer request can be reused.
+
+Changing input or settings aborts the old browser stream and prevents stale
+responses from appearing. Server cancellation is checked while waiting for the
+inference slot and between streamed chunks. Hy-MT2 may finish the current
+decoding step and NLLB finishes its active line before stopping. An Ollama/cloud
+HTTP read can remain blocked until its next event or read timeout (120 seconds
+for Ollama, 60 seconds for cloud translation calls). Closing the browser stream
+does not guarantee immediate upstream termination.
+
+If deploying behind another reverse proxy, disable response buffering for
+`/api/translate/stream` so chunks can reach the browser promptly. Treat only the
+terminal `done` event as success; later failures are sent as `error` events in
+the stream, and an early connection close is incomplete.
 
 ---
 

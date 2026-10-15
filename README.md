@@ -32,8 +32,8 @@ Pick the translation **engine per request**: **NLLB-200**, Tencent's **Hy-MT2**,
 
 | Engine | Where it runs | Enabled when | Notes |
 | --- | --- | --- | --- |
-| **NLLB-200 (600M)** | 🖥️ this server | model converted | Meta · 200 languages · fastest |
-| **Hy-MT2 (1.8B)** | 🖥️ this server | GGUF downloaded | Tencent, 2026 · 38 languages incl. Korean · most natural phrasing |
+| **NLLB-200 (600M)** | 🖥️ this server | model converted | Meta · 200 languages · int8 CPU inference |
+| **Hy-MT2 (1.8B)** | 🖥️ this server | GGUF downloaded | Tencent, 2026 · 38 languages incl. Korean · translation-focused |
 | **TranslateGemma 4B** | 🖥️ this Space (Ollama) | bundled model ready | Google, 2026 · 55 languages · slower on free CPU |
 | **Qwen3.5 2B** | 🖥️ this Space (Ollama) | bundled model ready | 201 languages and dialects · Q4_K_M, ~1.9 GB · thinking disabled |
 | **Qwen3 1.7B** | 🖥️ this Space (Ollama) | bundled model ready | 119 languages and dialects incl. Korean · Q4_K_M, ~1.4 GB · thinking disabled |
@@ -54,13 +54,15 @@ Pick the translation **engine per request**: **NLLB-200**, Tencent's **Hy-MT2**,
 - **200 languages** — the full FLORES-200 set, with a searchable picker and common languages pinned.
 - **No third-party API for local engines** — all five local engines translate on the server; cloud engines are labelled with where the text goes.
 - **Built for typing** — debounced auto-translate, auto-growing panes, one-click example phrases, skeleton loading, swap, copy, dark mode.
+- **Progressive output** — LLM translations appear as tokens arrive; NLLB shows each completed line. Changing text or settings cancels the previous stream and keeps old responses from replacing the current result.
+- **Reuse completed translations** — bounded memory caches on the server for local models and in the browser tab for all engines.
 - **Keyboard and screen-reader friendly** — arrow keys / Enter / Esc in every picker, labelled controls, live-region output, correct `lang` / `dir` on text.
 - **Deploy free** — single-container HuggingFace Space, or split Vercel + backend. See [DEPLOY.md](DEPLOY.md).
 
 ## 🏗️ Architecture
 
 ```
-┌──────────────┐   HTTP / JSON   ┌───────────────────────────────────────────┐
+┌──────────────┐ HTTP / NDJSON   ┌───────────────────────────────────────────┐
 │  Next.js UI  │ ──────────────▶ │  FastAPI  ·  /api/*                       │
 │  engine +    │ ◀────────────── │  provider registry                        │
 │  lang picker │  (+ user keys)  │   ├─ nllb         🖥️ CTranslate2 int8     │
@@ -79,7 +81,8 @@ Pick the translation **engine per request**: **NLLB-200**, Tencent's **Hy-MT2**,
 ```
 NLLB-Trans/
 ├── backend/                 FastAPI + provider registry
-│   ├── main.py              API: /api/translate, /api/engines, /api/languages
+│   ├── main.py              API: JSON + streaming translation, engines, languages
+│   ├── inference_runtime.py CPU quota detection + shared local inference slot
 │   ├── providers/           one file per engine + shared chat client
 │   ├── languages.py         FLORES-200 code ↔ name mapping
 │   ├── convert_model.py     NLLB: HF → CTranslate2 int8
@@ -167,6 +170,7 @@ export OLLAMA_QWEN3_MODEL=qwen3:1.7b
 | `GET` | `/api/engines` | — | Engines with `available` flags + setup hints |
 | `GET` | `/api/languages` | — | List of `{ code, name }` |
 | `POST` | `/api/translate` | `{ text, source, target, engine? }` | Translate; `engine` selects the engine |
+| `POST` | `/api/translate/stream` | same body and headers as `/api/translate` | NDJSON stream: `delta`, then `done` or `error` |
 
 Language codes are FLORES-200 (`<iso639-3>_<script>`), e.g. `eng_Latn`, `kor_Hang`, `jpn_Jpan`. Omit `engine` to use the first available one. Cloud engines accept a per-request key in `X-Gemini-Key`, `X-Groq-Key`, `X-OpenRouter-Key` (plus `X-OpenRouter-Model`) or `X-OpenAI-Key`.
 
@@ -180,6 +184,36 @@ curl -X POST http://localhost:8000/api/translate \
 # → {"translation":"오늘 날씨가 아주 좋네요.", ...}
 ```
 
+The browser uses `/api/translate/stream`. Each newline-delimited JSON object is
+either `{"type":"delta","text":"..."}`, a `done` event containing the full
+`translation`, language codes and engine, or an `error` event containing `detail`
+and `status`. Wait for `done` before treating output as complete; a connection
+ending early is an error. The original JSON endpoint remains available.
+
+### Response behavior on free CPU
+
+Streaming makes partial output visible before the full translation finishes;
+model loading, prompt processing, text length and concurrent visitors still affect
+the wait. NLLB retains beam size 4 and streams whole completed lines. Hy-MT2 keeps
+its existing sampling settings and streams generated text.
+
+All local engines share one inference slot in each backend process, so they do
+not compete for the Space's two CPUs. The Space image pins `HYMT_THREADS` and
+`CT2_THREADS` to 2 as well as Ollama's translation threads. Other installations
+can leave the Hy-MT2/NLLB values at 0 to detect CPU affinity and container quotas.
+
+NLLB and Hy-MT2 each retain up to 2,048 completed lines; each Ollama engine retains
+up to 256 completed translations. These caches are in server memory and reset on
+restart. The browser retains up to 32 successful results in the current tab's
+memory, clears them when key/model settings change, and loses them on reload.
+Incomplete or failed results are not added to these caches.
+
+The browser aborts superseded streams immediately. Server work observes
+cancellation while waiting for the local inference slot and between generated
+chunks. Hy-MT2 can finish its current decoding step first, and NLLB finishes its
+current line. Ollama/cloud HTTP reads can remain blocked until the next event or
+read timeout; cancellation does not guarantee immediate upstream termination.
+
 ### Adding an engine
 
 Create `backend/providers/<name>.py` implementing `TranslationProvider`
@@ -187,10 +221,13 @@ Create `backend/providers/<name>.py` implementing `TranslationProvider`
 [`backend/providers/__init__.py`](backend/providers/__init__.py). OpenAI-compatible
 chat APIs can reuse `providers/chat_api.py`. The engine shows up in the UI
 automatically once it's available.
+Implement `stream_translate(..., cancel=None)` to yield incremental text and
+honor the cancellation event; the base implementation yields the completed
+`translate()` result for providers without streaming support.
 
 ## ☁️ Deploy
 
-- **HuggingFace Space (single container)** — the root [`Dockerfile`](Dockerfile) builds the static frontend, the API, and all five local models into one image served from one origin. Ollama stays internal to the container, loads one model at a time, and unloads it after two idle minutes. The Ollama engines use a 4K context and two CPU threads; Qwen thinking is disabled for translation.
+- **HuggingFace Space (single container)** — the root [`Dockerfile`](Dockerfile) builds the static frontend, the API, and all five local models into one image served from one origin. Ollama stays internal to the container, loads one model at a time, and keeps it for up to ten idle minutes to reduce repeated loading. Switching models can still require a reload. The Ollama engines use a 4K context and two CPU threads; Qwen thinking is disabled for translation.
 - **Split** — frontend on Vercel + backend on any Docker host. The backend-only image includes NLLB and Hy-MT2; Ollama requires a separate service and model pulls.
 
 Full steps, including Space metadata and secrets, in **[DEPLOY.md](DEPLOY.md)**.

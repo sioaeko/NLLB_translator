@@ -24,8 +24,6 @@ class OllamaTests(unittest.TestCase):
         environment.start()
         self.addCleanup(environment.stop)
         self.provider = ollama.OllamaProvider()
-        self.provider._translate.cache_clear()
-        self.addCleanup(self.provider._translate.cache_clear)
 
     def service_mocks(self, installed, children, pull=False):
         """Keep lifecycle tests independent of real processes and signal handlers."""

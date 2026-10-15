@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import os
 import re
+from threading import Event
 
 from providers.base import TranslationProvider
-from providers.chat_api import chat_translate
+from providers.chat_api import chat_stream_translate, chat_translate
 
 ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = os.environ.get("OPENROUTER_MODEL", "google/gemma-4-31b-it:free")
@@ -46,4 +47,17 @@ class OpenRouterProvider(TranslationProvider):
             tgt,
             headers={"HTTP-Referer": APP_URL, "X-Title": "NLLB Translator"},
             extra={"temperature": 0.3},
+        )
+
+    def stream_translate(self, text, src, tgt, api_key=None, model=None, cancel: Event | None = None):
+        key = api_key or os.environ.get("OPENROUTER_API_KEY")
+        if not key:
+            raise ValueError("No OpenRouter API key provided.")
+        slug = (model or DEFAULT_MODEL).strip()
+        if not _SLUG.match(slug):
+            raise ValueError(f"Not a valid OpenRouter model id: {slug!r}")
+        yield from chat_stream_translate(
+            ENDPOINT, key, slug, text, src, tgt,
+            headers={"HTTP-Referer": APP_URL, "X-Title": "NLLB Translator"},
+            extra={"temperature": 0.3}, cancel=cancel,
         )

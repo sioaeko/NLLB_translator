@@ -10,7 +10,9 @@ OR supplied by the client per-request (bring-your-own-key).
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
+from threading import Event
 
 from languages import name_for
 
@@ -47,6 +49,57 @@ def clean_output(text: str) -> str:
     return _THINK.sub("", text).strip()
 
 
+def clean_stream(chunks: Iterator[str]) -> Iterator[str]:
+    """Hide reasoning even across chunk boundaries, and trim outer whitespace."""
+    buffer = ""
+    thinking = False
+    started = False
+    whitespace = ""
+
+    def visible(text: str) -> str:
+        nonlocal started, whitespace
+        if not started:
+            text = text.lstrip()
+        text = whitespace + text
+        body = text.rstrip()
+        whitespace = text[len(body):]
+        if body:
+            started = True
+        return body
+
+    try:
+        for chunk in chunks:
+            buffer += chunk
+            while buffer:
+                marker = "</think>" if thinking else "<think>"
+                index = buffer.find(marker)
+                if index >= 0:
+                    if not thinking:
+                        text = visible(buffer[:index])
+                        if text:
+                            yield text
+                    buffer = buffer[index + len(marker):]
+                    thinking = not thinking
+                    continue
+                keep = next((n for n in range(min(len(marker) - 1, len(buffer)), 0, -1)
+                             if buffer.endswith(marker[:n])), 0)
+                safe = buffer[:-keep] if keep else buffer
+                buffer = buffer[-keep:] if keep else ""
+                if not thinking:
+                    text = visible(safe)
+                    if text:
+                        yield text
+                break
+        if not thinking:
+            text = visible(buffer)
+            if text:
+                yield text
+    finally:
+        close = getattr(chunks, "close", None)
+        if close is not None:
+            close()
+
+
 class TranslationProvider:
     id: str = ""
     name: str = ""
@@ -72,6 +125,13 @@ class TranslationProvider:
     def display_name(self) -> str:
         """Overridable so engines like Ollama can reflect the active model."""
         return self.name
+
+    def stream_translate(self, text, src, tgt, api_key=None, model=None, *, cancel: Event | None = None):
+        if cancel is not None and cancel.is_set():
+            return
+        result = self.translate(text, src, tgt, api_key=api_key, model=model)
+        if cancel is None or not cancel.is_set():
+            yield result
 
     def info(self) -> ProviderInfo:
         return ProviderInfo(

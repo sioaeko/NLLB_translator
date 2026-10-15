@@ -56,6 +56,8 @@ FROM python:3.11-slim AS runtime
 WORKDIR /app
 ENV STATIC_DIR=/app/static \
     HF_HUB_DISABLE_SYMLINKS_WARNING=1 \
+    HYMT_THREADS=2 \
+    CT2_THREADS=2 \
     OLLAMA_HOST=http://127.0.0.1:11434 \
     OLLAMA_MODELS=/opt/ollama/models \
     OLLAMA_MODEL=translategemma:4b \
@@ -65,7 +67,7 @@ ENV STATIC_DIR=/app/static \
     OLLAMA_MAX_QUEUE=8 \
     OLLAMA_CONTEXT_LENGTH=4096 \
     OLLAMA_TRANSLATE_THREADS=2 \
-    OLLAMA_KEEP_ALIVE=2m
+    OLLAMA_KEEP_ALIVE=10m
 COPY backend/requirements.txt backend/requirements-llm.txt ./
 COPY --from=llama /wheels /wheels
 RUN pip install --no-cache-dir -r requirements.txt \

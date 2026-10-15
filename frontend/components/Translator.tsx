@@ -5,7 +5,7 @@ import LanguageSelect from "./LanguageSelect";
 import EngineSelect from "./EngineSelect";
 import EngineIcon from "./EngineIcon";
 import Settings from "./Settings";
-import { fetchEngines, fetchLanguages, translate } from "@/lib/api";
+import { fetchEngines, fetchLanguages, translateStream } from "@/lib/api";
 import { loadKeys, saveKeys } from "@/lib/keys";
 import { KEY_FIELDS, OPENROUTER_MODEL_KEY, SENT_TO, openRouterLabel } from "@/lib/engines";
 import type { ApiKeys, Engine, Language } from "@/lib/types";
@@ -13,6 +13,7 @@ import type { ApiKeys, Engine, Language } from "@/lib/types";
 const MAX_CHARS = 5000;
 const DEBOUNCE_MS = 500;
 const SLOW_MS = 2500;
+const CACHE_SIZE = 32;
 
 const SAMPLES = [
   { lang: "eng_Latn", tag: "EN", text: "Where is the nearest subway station?" },
@@ -33,8 +34,14 @@ function toBcp47(code: string) {
   return TWO_LETTER[lang] ?? `${lang}-${script}`;
 }
 
-const requestKey = (text: string, src: string, tgt: string, eng: string) =>
-  JSON.stringify([text, src, tgt, eng]);
+interface TranslationRequest {
+  text: string;
+  source: string;
+  target: string;
+  engine: string;
+  keys: ApiKeys;
+  cacheKey: string;
+}
 
 const iconProps = {
   viewBox: "0 0 24 24",
@@ -57,7 +64,7 @@ export default function Translator() {
   const [target, setTarget] = useState("kor_Hang");
   const [input, setInput] = useState("");
   const [output, setOutput] = useState("");
-  const [outputFor, setOutputFor] = useState(""); // request that produced `output`
+  const [outputFor, setOutputFor] = useState<TranslationRequest | null>(null);
   const [loading, setLoading] = useState(false);
   const [slow, setSlow] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +75,20 @@ export default function Translator() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
+  const currentRequestRef = useRef<TranslationRequest | null>(null);
+  const cacheRef = useRef(new Map<string, string>());
   const taRef = useRef<HTMLTextAreaElement>(null);
+
+  // Object identity includes key changes without putting credentials in cache keys.
+  const request = useMemo<TranslationRequest>(() => ({
+    text: input, source, target, engine, keys,
+    cacheKey: JSON.stringify([input, source, target, engine, keys[OPENROUTER_MODEL_KEY] ?? ""]),
+  }), [input, source, target, engine, keys]);
+
+  // Completed results remain in this tab's memory only, within one credential scope.
+  useLayoutEffect(() => {
+    cacheRef.current.clear();
+  }, [keys]);
 
   useEffect(() => {
     setKeys(loadKeys());
@@ -98,38 +118,83 @@ export default function Translator() {
   );
 
   const runTranslate = useCallback(
-    async (text: string, src: string, tgt: string, eng: string, k: ApiKeys) => {
+    async (next: TranslationRequest) => {
+      if (currentRequestRef.current !== next) return;
       abortRef.current?.abort();
+      abortRef.current = null;
+      const { text, source: src, target: tgt, engine: eng, keys: k, cacheKey } = next;
+      setError(null);
+      setCopied(false);
+      setSlow(false);
+      setOutputFor(next);
       if (!text.trim() || !eng) {
         setOutput("");
-        setError(null);
         setLoading(false);
         return;
       }
+
+      const cached = cacheRef.current.get(cacheKey);
+      if (cached !== undefined) {
+        cacheRef.current.delete(cacheKey);
+        cacheRef.current.set(cacheKey, cached);
+        setOutput(cached);
+        setLoading(false);
+        return;
+      }
+
       const controller = new AbortController();
       abortRef.current = controller;
+      const isCurrent = () => !controller.signal.aborted &&
+        abortRef.current === controller && currentRequestRef.current === next;
+      setOutput("");
       setLoading(true);
-      setError(null);
+      let partial = "";
       try {
-        const res = await translate(text, src, tgt, eng, k, controller.signal);
+        const res = await translateStream(text, src, tgt, eng, k, (delta) => {
+          if (!isCurrent()) return;
+          partial += delta;
+          setOutput(partial);
+        }, controller.signal);
+        if (!isCurrent()) return;
         setOutput(res.translation);
-        setOutputFor(requestKey(text, src, tgt, eng));
+        cacheRef.current.set(cacheKey, res.translation);
+        if (cacheRef.current.size > CACHE_SIZE) {
+          cacheRef.current.delete(cacheRef.current.keys().next().value!);
+        }
       } catch (e) {
-        if ((e as Error).name !== "AbortError") {
+        if (isCurrent() && (e as Error).name !== "AbortError") {
           setError((e as Error).message);
           setOutput("");
         }
       } finally {
-        if (abortRef.current === controller) setLoading(false);
+        if (isCurrent()) {
+          abortRef.current = null;
+          setLoading(false);
+        }
       }
     },
     []
   );
 
-  useEffect(() => {
-    const id = setTimeout(() => runTranslate(input, source, target, engine, keys), DEBOUNCE_MS);
-    return () => clearTimeout(id);
-  }, [input, source, target, engine, keys, runTranslate]);
+  useLayoutEffect(() => {
+    currentRequestRef.current = request;
+    setLoading(false);
+    setError(null);
+    setCopied(false);
+    // Invalidate the running request on every edit, before waiting for typing to stop.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    if (!request.text.trim() || !request.engine || cacheRef.current.has(request.cacheKey)) {
+      void runTranslate(request);
+    } else {
+      timer = setTimeout(() => void runTranslate(request), DEBOUNCE_MS);
+    }
+    return () => {
+      clearTimeout(timer);
+      currentRequestRef.current = null;
+      abortRef.current?.abort();
+      abortRef.current = null;
+    };
+  }, [request, runTranslate]);
 
   // Only surface the "still working" note when a request takes a while.
   useEffect(() => {
@@ -188,7 +253,7 @@ export default function Translator() {
   // Between an edit and the debounced request, the shown translation belongs to
   // older input: dim it rather than let it pass for the current result.
   const hasInput = !!input.trim();
-  const stale = !!output && outputFor !== requestKey(input, source, target, engine);
+  const stale = !!output && outputFor !== request;
   const provider = activeEngine ? SENT_TO[activeEngine.key_field] ?? "the provider" : "";
   const usesOwnKey = !!activeEngine?.key_field && !!keys[activeEngine.key_field];
 
@@ -218,7 +283,7 @@ export default function Translator() {
         </p>
         <button
           type="button"
-          onClick={() => runTranslate(input, source, target, engine, keys)}
+          onClick={() => runTranslate(request)}
           className="mt-2.5 font-medium text-accent-600 underline-offset-4 hover:underline dark:text-accent-400"
         >
           Try again
@@ -237,7 +302,7 @@ export default function Translator() {
         {slow && (
           <p className="mt-5 text-sm text-slate-500 dark:text-slate-400">
             {activeEngine?.kind === "local"
-              ? "Warming up the model. The first translation can take around 10 seconds."
+              ? "Preparing the model. Translation will appear as it is generated."
               : `Waiting for ${provider}…`}
           </p>
         )}
@@ -248,8 +313,8 @@ export default function Translator() {
       <p
         lang={toBcp47(target)}
         dir="auto"
-        data-stale={stale || loading}
-        className={`whitespace-pre-wrap transition-opacity duration-200 ${stale || loading ? "opacity-45" : ""}`}
+        data-stale={stale}
+        className={`whitespace-pre-wrap transition-opacity duration-200 ${stale ? "opacity-45" : ""}`}
       >
         {output}
       </p>
@@ -410,6 +475,7 @@ export default function Translator() {
                   <>
                     <EngineIcon id={activeEngine.id} size={12} />
                     <span className="truncate">{activeEngine.name}</span>
+                    {loading && <span className="shrink-0" role="status">· Translating…</span>}
                   </>
                 )}
               </span>

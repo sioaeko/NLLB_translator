@@ -8,9 +8,10 @@ it, and it keeps latency and cost at their lowest. Not private.
 from __future__ import annotations
 
 import os
+from threading import Event
 
 from providers.base import TranslationProvider
-from providers.chat_api import chat_translate
+from providers.chat_api import chat_stream_translate, chat_translate
 
 ENDPOINT = "https://api.openai.com/v1/chat/completions"
 MODEL = os.environ.get("OPENAI_MODEL", "gpt-6-luna")
@@ -37,3 +38,11 @@ class OpenAIProvider(TranslationProvider):
         if not key:
             raise ValueError("No OpenAI API key provided.")
         return chat_translate(ENDPOINT, key, MODEL, text, src, tgt, extra={"reasoning_effort": "none"})
+
+    def stream_translate(self, text, src, tgt, api_key=None, model=None, cancel: Event | None = None):
+        key = api_key or os.environ.get("OPENAI_API_KEY")
+        if not key:
+            raise ValueError("No OpenAI API key provided.")
+        yield from chat_stream_translate(
+            ENDPOINT, key, MODEL, text, src, tgt, extra={"reasoning_effort": "none"}, cancel=cancel,
+        )

@@ -10,15 +10,17 @@ from __future__ import annotations
 
 import importlib.util
 import os
-from functools import lru_cache
-from threading import Lock
+from collections import OrderedDict
+from collections.abc import Iterator
+from threading import Event, Lock
 
+from inference_runtime import check_cancelled, cpu_thread_count, local_inference
 from languages import name_for
-from providers.base import TranslationProvider, clean_output
+from providers.base import TranslationProvider, clean_output, clean_stream
 
 MODEL_PATH = os.environ.get("HYMT_MODEL_PATH", "models/hy-mt2-1.8b/Hy-MT2-1.8B-Q4_K_M.gguf")
 N_CTX = int(os.environ.get("HYMT_CTX", "4096"))
-N_THREADS = int(os.environ.get("HYMT_THREADS", "0")) or None  # None: llama.cpp decides
+N_THREADS = int(os.environ.get("HYMT_THREADS", "0"))
 
 # FLORES-200 code -> (English name, Chinese name) as used in Hy-MT2's prompts.
 LANGS: dict[str, tuple[str, str]] = {
@@ -87,6 +89,8 @@ class HyMTProvider(TranslationProvider):
         self._llm = None
         self._lock = Lock()
         self._infer_lock = Lock()  # a llama.cpp context serves one request at a time
+        self._cache: OrderedDict[tuple[str, str, str], str] = OrderedDict()
+        self._cache_lock = Lock()
 
     def is_available(self) -> bool:
         return os.path.isfile(MODEL_PATH) and importlib.util.find_spec("llama_cpp") is not None
@@ -99,12 +103,42 @@ class HyMTProvider(TranslationProvider):
                 return
             from llama_cpp import Llama
 
-            self._llm = Llama(model_path=MODEL_PATH, n_ctx=N_CTX, n_threads=N_THREADS, verbose=False)
+            threads = cpu_thread_count(N_THREADS)
+            self._llm = Llama(
+                model_path=MODEL_PATH,
+                n_ctx=N_CTX,
+                n_threads=threads,
+                n_threads_batch=threads,
+                verbose=False,
+            )
 
-    @lru_cache(maxsize=2048)
     def _translate_line(self, text: str, src: str, tgt: str) -> str:
-        with self._infer_lock:
-            out = self._llm.create_chat_completion(
+        return clean_output("".join(self._stream_translate_line(text, src, tgt)))
+
+    def _cached_line(self, key: tuple[str, str, str]) -> str | None:
+        with self._cache_lock:
+            if key not in self._cache:
+                return None
+            self._cache.move_to_end(key)
+            return self._cache[key]
+
+    def _stream_translate_line(
+        self, text: str, src: str, tgt: str, cancel: Event | None = None
+    ) -> Iterator[str]:
+        check_cancelled(cancel)
+        key = (text, src, tgt)
+        cached = self._cached_line(key)
+        if cached is not None:
+            yield cached
+            return
+
+        with local_inference(cancel), self._infer_lock:
+            # Another request may have completed this line while we waited.
+            cached = self._cached_line(key)
+            if cached is not None:
+                yield cached
+                return
+            chunks = self._llm.create_chat_completion(
                 messages=[{"role": "user", "content": _prompt(text, src, tgt)}],
                 # Sampling settings recommended on the model card.
                 temperature=0.7,
@@ -112,18 +146,74 @@ class HyMTProvider(TranslationProvider):
                 top_k=20,
                 repeat_penalty=1.05,
                 max_tokens=min(2048, 64 + 4 * len(text)),
+                stream=True,
             )
-        return clean_output(out["choices"][0]["message"]["content"] or "")
+            output = []
 
-    def translate(self, text, src, tgt, api_key=None, model=None) -> str:
+            def content_deltas():
+                for chunk in chunks:
+                    check_cancelled(cancel)
+                    choices = chunk.get("choices", [])
+                    delta = choices[0].get("delta", {}).get("content") if choices else None
+                    if delta:
+                        yield delta
+                    reason = choices[0].get("finish_reason") if choices else None
+                    if reason is not None:
+                        if reason == "length":
+                            raise RuntimeError("Translation reached the model limit. Try a shorter text.")
+                        if reason != "stop":
+                            raise RuntimeError(f"Hy-MT2 stopped without completing the translation ({reason}).")
+                        return
+                raise RuntimeError("Hy-MT2 interrupted the translation before it finished.")
+
+            stream = clean_stream(content_deltas())
+            try:
+                for delta in stream:
+                    check_cancelled(cancel)
+                    output.append(delta)
+                    yield delta
+            finally:
+                # Closing the outer generator also closes llama.cpp's generator
+                # and releases both locks. A partial or failed line never caches.
+                stream.close()
+                close = getattr(chunks, "close", None)
+                if close is not None:
+                    close()
+            check_cancelled(cancel)
+            translation = clean_output("".join(output))
+            if not translation:
+                raise RuntimeError("Hy-MT2 returned no translation.")
+            with self._cache_lock:
+                self._cache[key] = translation
+                self._cache.move_to_end(key)
+                while len(self._cache) > 2048:
+                    self._cache.popitem(last=False)
+
+    def _validate(self, src: str, tgt: str) -> None:
         for code in (src, tgt):
             if code not in LANGS:
                 raise ValueError(
                     f"Hy-MT2 doesn't support {name_for(code)}. Try NLLB-200 for this language."
                 )
+
+    def translate(self, text, src, tgt, api_key=None, model=None) -> str:
+        self._validate(src, tgt)
         self._ensure_loaded()
         # Line by line: keeps each prompt short and lets unchanged lines hit the cache
         # while the user is still typing.
         return "\n".join(
             self._translate_line(line, src, tgt) if line.strip() else "" for line in text.split("\n")
         )
+
+    def stream_translate(
+        self, text, src, tgt, api_key=None, model=None, cancel: Event | None = None
+    ) -> Iterator[str]:
+        check_cancelled(cancel)
+        self._validate(src, tgt)
+        self._ensure_loaded()
+        for index, line in enumerate(text.split("\n")):
+            check_cancelled(cancel)
+            if index:
+                yield "\n"
+            if line.strip():
+                yield from self._stream_translate_line(line, src, tgt, cancel)
