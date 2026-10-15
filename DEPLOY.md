@@ -57,6 +57,9 @@ frontend host.
   Ollama runtime. The Qwen tags are `qwen3.5:2b-q4_K_M` and `qwen3:1.7b`.
 - Docker also compiles a llama.cpp CPU wheel against Debian's libc and verifies
   that it loads before publishing the image; later builds can reuse this layer.
+- The build finishes llama.cpp compilation before converting NLLB, then prepares
+  the Ollama models. NLLB conversion uses memory-efficient loading with Accelerate
+  to reduce peak memory when the free builder has no cached model layer.
 - Free CPU Spaces sleep after ~2 days idle and wake on the next visit; the first
   translation after a wake-up also includes model-loading time.
 - Ollama binds only to `127.0.0.1:11434`; visitors use it through the translation

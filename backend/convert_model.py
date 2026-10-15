@@ -32,6 +32,9 @@ def main() -> int:
         "--model", HF_MODEL,
         "--output_dir", OUT_DIR,
         "--quantization", QUANTIZATION,
+        # Avoid simultaneously allocating random model weights and a full
+        # checkpoint during from_pretrained in memory-limited Space builds.
+        "--low_cpu_mem_usage",
     ]
     print("Running:", " ".join(cmd))
     result = subprocess.run(cmd)

@@ -2,3 +2,5 @@
 # Runtime inference does not need torch. Install with the CPU wheel index:
 #   pip install -r requirements-convert.txt --extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.5.1
+# Transformers uses Accelerate's empty-weight loading for low_cpu_mem_usage.
+accelerate==1.2.1

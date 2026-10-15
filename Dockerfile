@@ -13,7 +13,19 @@ ENV NEXT_OUTPUT_EXPORT=1
 ENV NEXT_PUBLIC_API_BASE=
 RUN npm run build   # produces /fe/out
 
-# ---- Stage 2: prepare model files (torch is needed here only) ----
+# ---- Build llama.cpp against the same libc as the runtime ----
+# The third-party CPU wheel can depend on musl, which Debian does not provide.
+FROM python:3.11-slim AS llama
+WORKDIR /build
+COPY backend/requirements-llm.txt ./
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential cmake \
+ && rm -rf /var/lib/apt/lists/*
+RUN CMAKE_ARGS="-DGGML_NATIVE=OFF" CMAKE_BUILD_PARALLEL_LEVEL=2 \
+    pip wheel --no-cache-dir --no-deps --no-binary=llama-cpp-python \
+      -r requirements-llm.txt --wheel-dir /wheels \
+ && touch /wheels/.ready
+
+# ---- Prepare model files (torch is needed here only) ----
 FROM python:3.11-slim AS model
 WORKDIR /m
 COPY backend/requirements.txt backend/requirements-convert.txt backend/convert_model.py backend/fetch_hymt.py ./
@@ -24,24 +36,17 @@ RUN pip install --no-cache-dir -r requirements.txt \
 RUN apt-get update && apt-get install -y --no-install-recommends patchelf \
  && find /usr/local/lib/python3.11/site-packages -name '*.so*' -path '*ctranslate2*' -exec patchelf --clear-execstack {} + \
  && apt-get purge -y patchelf && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+# Compile and conversion must not compete for the free builder's memory.
+COPY --from=llama /wheels/.ready /tmp/llama-ready
 RUN python convert_model.py   # ./models/nllb-200-distilled-600M-int8
-RUN python fetch_hymt.py      # ./models/hy-mt2-1.8b/Hy-MT2-1.8B-Q4_K_M.gguf (~1.1 GB)
-
-# ---- Build llama.cpp against the same libc as the runtime ----
-# The third-party CPU wheel can depend on musl, which Debian does not provide.
-FROM python:3.11-slim AS llama
-WORKDIR /build
-COPY backend/requirements-llm.txt ./
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential cmake \
- && rm -rf /var/lib/apt/lists/*
-RUN CMAKE_ARGS="-DGGML_NATIVE=OFF" CMAKE_BUILD_PARALLEL_LEVEL=2 \
-    pip wheel --no-cache-dir --no-deps --no-binary=llama-cpp-python \
-      -r requirements-llm.txt --wheel-dir /wheels
+RUN python fetch_hymt.py && touch /m/.models-ready
 
 # ---- Ollama + model, downloaded once during the image build ----
 FROM ollama/ollama:0.35.0@sha256:2a6e883b917fc543389599dae79918f5cac9e1438890506982f44aa4f5625d01 AS ollama-dist
 FROM python:3.11-slim AS ollama-model
 WORKDIR /prepare
+# Finish conversion before starting the large Ollama model pulls.
+COPY --from=model /m/.models-ready /tmp/models-ready
 COPY --from=ollama-dist /usr/bin/ollama /usr/bin/ollama
 COPY --from=ollama-dist /usr/lib/ollama /usr/lib/ollama
 ENV OLLAMA_HOST=http://127.0.0.1:11434 \
